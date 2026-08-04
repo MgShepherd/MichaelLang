@@ -5,7 +5,37 @@
 
 #include "utils.h"
 
-typedef enum { T_IDENTIFIER } TokenType;
+// Using X-Macros to create TokenType enum with a generated t_type_to_string method
+#define TOKEN_TYPES                                                                                                    \
+  X(T_INVALID)                                                                                                         \
+  X(T_IDENTIFIER)                                                                                                      \
+  X(T_NUMERIC_LIT)                                                                                                     \
+  X(T_KEYWORD)                                                                                                         \
+  X(T_ARROW)                                                                                                           \
+  X(T_LEFT_PAREN)                                                                                                      \
+  X(T_RIGHT_PAREN)                                                                                                     \
+  X(T_LEFT_CURLY)                                                                                                      \
+  X(T_RIGHT_CURLY)                                                                                                     \
+  X(T_EQUALS)                                                                                                          \
+  X(T_COLON)                                                                                                           \
+  X(T_SEMI)
+
+#define X(N) N,
+typedef enum { TOKEN_TYPES } TokenType;
+#undef X
+
+#define X(N)                                                                                                           \
+  case N:                                                                                                              \
+    return #N;
+
+const char *t_type_to_string(TokenType t) {
+  switch (t) {
+    TOKEN_TYPES
+  default:
+    return "unknown";
+  }
+}
+#undef X
 
 typedef struct {
   TokenType t_type;
