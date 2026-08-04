@@ -6,6 +6,9 @@
 
 #define EXAMPLE_FILE_NAME "examples/basic.mgs"
 
+// TODO: Test with empty file - most places are expecting file length greater than 0, but we should handle empty file
+// gracefully
+
 int main() {
   FileData file_data;
   if (read_file(&file_data, EXAMPLE_FILE_NAME) != 0) {

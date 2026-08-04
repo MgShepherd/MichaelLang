@@ -5,7 +5,7 @@
 
 #include "utils.h"
 
-typedef enum { IDENTIFIER } TokenType;
+typedef enum { T_IDENTIFIER } TokenType;
 
 typedef struct {
   TokenType t_type;
@@ -24,7 +24,7 @@ typedef struct {
  * Will return 0 on success, 1 on failure (alongside logging the failure cause to stderr)
  * Note: Once TokenArray has been created, data parameter can be freed as string copies are made for each element
  */
-unsigned char lexer_process_tokens(TokenArray *token_arr, const FileData *data);
+unsigned char lexer_process_tokens(TokenArray *token_arr, const FileData *file_data);
 
 /*
  * Frees the memory associated with the token array object

@@ -1,5 +1,6 @@
 #include "utils.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -61,4 +62,22 @@ void file_data_free(FileData *file_data) {
   }
   file_data->data = NULL;
   file_data->count = 0;
+}
+
+char *string_slice(const char *input, size_t slice_start, size_t slice_end) {
+  assert(input != NULL);
+  assert(slice_start < slice_end);
+
+  char *output = malloc(slice_end - slice_start + 1);
+  if (output == NULL) {
+    fprintf(stderr, "Failed to allocate required space for string slice");
+    return NULL;
+  }
+
+  for (size_t i = slice_start; i < slice_end; i++) {
+    output[i - slice_start] = input[i];
+  }
+
+  output[slice_end - slice_start] = '\0';
+  return output;
 }
