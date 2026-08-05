@@ -17,6 +17,33 @@ bool is_separator_token(char current);
 bool is_valid_identifier(const char *token);
 bool is_numeric_literal(const char *token);
 
+#define X(N)                                                                                                           \
+  case N:                                                                                                              \
+    return #N;
+
+const char *t_type_to_string(TokenType t) {
+  switch (t) {
+    TOKEN_TYPES
+  default:
+    return "unknown";
+  }
+}
+#undef X
+
+typedef struct {
+  const char *key;
+  TokenType value;
+} TokenMapping;
+
+static const TokenMapping mappings[] = {
+    {.key = "func", .value = T_KEYWORD},
+    {.key = "i32", .value = T_KEYWORD},
+    {.key = "return", .value = T_KEYWORD},
+    {.key = "->", .value = T_ARROW},
+};
+
+static const size_t NUM_TOKEN_MAPPINGS = (sizeof(mappings) / sizeof(mappings[0]));
+
 unsigned char lexer_process_tokens(TokenArray *token_arr, const FileData *file_data) {
   assert(file_data->count > 0 && file_data->data != NULL);
 
@@ -121,24 +148,11 @@ TokenType get_token_type(const char *token) {
     return T_SEMI;
   case ':':
     return T_COLON;
-  case 'f':
-    if (strcmp("func", token) == 0) {
-      return T_KEYWORD;
-    }
-    break;
-  case 'i':
-    if (strcmp("i32", token) == 0) {
-      return T_KEYWORD;
-    }
-    break;
-  case 'r':
-    if (strcmp("return", token) == 0) {
-      return T_KEYWORD;
-    }
-    break;
-  case '-':
-    if (strcmp("->", token) == 0) {
-      return T_ARROW;
+  }
+
+  for (size_t i = 0; i < NUM_TOKEN_MAPPINGS; i++) {
+    if (strcmp(mappings[i].key, token) == 0) {
+      return mappings[i].value;
     }
   }
 

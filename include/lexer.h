@@ -24,18 +24,7 @@
 typedef enum { TOKEN_TYPES } TokenType;
 #undef X
 
-#define X(N)                                                                                                           \
-  case N:                                                                                                              \
-    return #N;
-
-const char *t_type_to_string(TokenType t) {
-  switch (t) {
-    TOKEN_TYPES
-  default:
-    return "unknown";
-  }
-}
-#undef X
+const char *t_type_to_string(TokenType t);
 
 typedef struct {
   TokenType t_type;
