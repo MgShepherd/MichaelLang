@@ -48,6 +48,11 @@ unsigned char lexer_process_tokens(TokenArray *token_arr, const FileData *file_d
   assert(file_data->count > 0 && file_data->data != NULL);
 
   token_arr->capacity = file_data->count * TOKEN_ARRAY_LEN_FACTOR;
+  // Guard against getting 0 capacity when token input size is very small
+  if (token_arr->capacity == 0) {
+    token_arr->capacity = 1;
+  }
+
   token_arr->count = 0;
   token_arr->tokens = malloc(token_arr->capacity * sizeof(Token));
 
@@ -101,6 +106,7 @@ void token_array_free(TokenArray *token_arr) {
 }
 
 unsigned char insert_token(TokenArray *token_arr, const char *input, size_t token_start, size_t token_end) {
+  assert(token_arr->tokens != NULL);
   // If the token is empty, don't insert it but continue with the program
   if (token_end == 0 || token_start >= token_end) {
     return 0;
@@ -110,7 +116,7 @@ unsigned char insert_token(TokenArray *token_arr, const char *input, size_t toke
     token_arr->capacity = token_arr->capacity * TOKEN_ARRAY_REALLOC_FACTOR;
     Token *new_tokens = realloc(token_arr->tokens, token_arr->capacity * sizeof(Token));
     if (new_tokens == NULL) {
-      fprintf(stderr, "Failed to allocate additional required space for tokens array");
+      fprintf(stderr, "Failed to allocate additional required space for tokens array\n");
       return 1;
     }
     token_arr->tokens = new_tokens;
