@@ -9,9 +9,9 @@ TEST_TARGET := $(BUILD_DIR)/CompilerTests
 
 SRCS := $(wildcard $(SRC_DIR)/*.c)
 TEST_SRCS := $(filter-out src/main.c, $(SRCS))
-TEST_FILES := $(wildcard $(TEST_DIR)/*.c)
+TEST_FILE := $(TEST_DIR)/tests.c
 OBJS := $(SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)
-TEST_OBJS := $(TEST_SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o) $(TEST_FILES:$(TEST_DIR)/%.c=$(BUILD_DIR)/%.o)
+TEST_OBJS := $(TEST_SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o) $(TEST_FILE:$(TEST_DIR)/%.c=$(BUILD_DIR)/%.o)
 
 .PHONY: all clean
 
