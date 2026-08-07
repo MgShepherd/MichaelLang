@@ -7,9 +7,6 @@
 
 #define EXAMPLE_FILE_NAME "examples/basic.mgs"
 
-// TODO: Test with empty file - most places are expecting file length greater than 0, but we should handle empty file
-// gracefully
-
 int main() {
   char *data = read_file(EXAMPLE_FILE_NAME);
   if (data == NULL) {
@@ -18,7 +15,7 @@ int main() {
   }
 
   TokenArray token_arr;
-  if (lexer_process_tokens_str(&token_arr, data) != 0) {
+  if (lexer_process_tokens(&token_arr, data) != 0) {
     fprintf(stderr, "Failed to convert file input into tokens\n");
     free(data);
     return 1;

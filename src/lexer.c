@@ -45,8 +45,13 @@ static const TokenMapping mappings[] = {
 static const size_t NUM_TOKEN_MAPPINGS = (sizeof(mappings) / sizeof(mappings[0]));
 
 unsigned char lexer_process_tokens(TokenArray *token_arr, const char *data) {
+  assert(data != NULL);
+
   const size_t data_len = strlen(data);
-  assert(data != NULL && data_len > 0);
+  // If file is empty, valid program but no further processing is needed
+  if (data_len == 0) {
+    return 0;
+  }
 
   token_arr->capacity = data_len * TOKEN_ARRAY_LEN_FACTOR;
   // Guard against getting 0 capacity when token input size is very small

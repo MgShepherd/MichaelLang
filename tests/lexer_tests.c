@@ -37,6 +37,27 @@ unsigned char test_lexer() {
           .num_expected_tokens = sizeof(case_2_expected_toks) / sizeof(TokenType),
           .expected_token_types = case_2_expected_toks,
       },
+      {
+          .name = "happy: Empty input",
+          .input = "",
+          .expected_result = 0,
+          .num_expected_tokens = 0,
+          .expected_token_types = NULL,
+      },
+      {
+          .name = "happy: Empty input with whitespace",
+          .input = "     ",
+          .expected_result = 0,
+          .num_expected_tokens = 0,
+          .expected_token_types = NULL,
+      },
+      {
+          .name = "unhappy: Invalid tokens",
+          .input = "y: i32 = 1test;",
+          .expected_result = 1,
+          .num_expected_tokens = 0,
+          .expected_token_types = NULL,
+      },
   };
   const size_t num_tests = sizeof(tests) / sizeof(LexerTest);
 
@@ -69,15 +90,4 @@ unsigned char test_lexer() {
   }
 
   return 0;
-}
-
-int main() {
-  printf("Running lexer tests\n");
-  if (test_lexer() != 0) {
-    fprintf(stderr, "Lexer tests failed, exiting...\n");
-    return 1;
-  }
-  printf("Lexer tests successful\n");
-
-  printf("All tests passed!!\n");
 }
