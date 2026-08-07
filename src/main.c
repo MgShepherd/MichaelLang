@@ -11,20 +11,20 @@
 // gracefully
 
 int main() {
-  FileData file_data;
-  if (read_file(&file_data, EXAMPLE_FILE_NAME) != 0) {
+  char *data = read_file(EXAMPLE_FILE_NAME);
+  if (data == NULL) {
     fprintf(stderr, "Failed to read file " EXAMPLE_FILE_NAME "\n");
     return 1;
   }
 
   TokenArray token_arr;
-  if (lexer_process_tokens(&token_arr, &file_data) != 0) {
+  if (lexer_process_tokens_str(&token_arr, data) != 0) {
     fprintf(stderr, "Failed to convert file input into tokens\n");
-    file_data_free(&file_data);
+    free(data);
     return 1;
   }
 
-  file_data_free(&file_data);
+  free(data);
 
   Program program;
   if (parse_tokens(&program, &token_arr) != 0) {

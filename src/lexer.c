@@ -44,10 +44,11 @@ static const TokenMapping mappings[] = {
 
 static const size_t NUM_TOKEN_MAPPINGS = (sizeof(mappings) / sizeof(mappings[0]));
 
-unsigned char lexer_process_tokens(TokenArray *token_arr, const FileData *file_data) {
-  assert(file_data->count > 0 && file_data->data != NULL);
+unsigned char lexer_process_tokens(TokenArray *token_arr, const char *data) {
+  const size_t data_len = strlen(data);
+  assert(data != NULL && data_len > 0);
 
-  token_arr->capacity = file_data->count * TOKEN_ARRAY_LEN_FACTOR;
+  token_arr->capacity = data_len * TOKEN_ARRAY_LEN_FACTOR;
   // Guard against getting 0 capacity when token input size is very small
   if (token_arr->capacity == 0) {
     token_arr->capacity = 1;
@@ -62,11 +63,11 @@ unsigned char lexer_process_tokens(TokenArray *token_arr, const FileData *file_d
   }
 
   size_t token_start = 0;
-  for (size_t i = 0; i < file_data->count; i++) {
-    const bool is_separator = is_separator_token(file_data->data[i]);
+  for (size_t i = 0; i < data_len; i++) {
+    const bool is_separator = is_separator_token(data[i]);
 
-    if (isspace(file_data->data[i]) > 0 || is_separator) {
-      if (insert_token(token_arr, file_data->data, token_start, i) != 0) {
+    if (isspace(data[i]) > 0 || is_separator) {
+      if (insert_token(token_arr, data, token_start, i) != 0) {
         fprintf(stderr, "Failed to insert token into tokens array\n");
         token_array_free(token_arr);
         return 1;
@@ -75,14 +76,14 @@ unsigned char lexer_process_tokens(TokenArray *token_arr, const FileData *file_d
     }
 
     // If the current char is a separator, insert another token for the separator itself
-    if (is_separator && insert_token(token_arr, file_data->data, i, i + 1) != 0) {
+    if (is_separator && insert_token(token_arr, data, i, i + 1) != 0) {
       fprintf(stderr, "Failed to insert token into tokens array\n");
       token_array_free(token_arr);
       return 1;
     }
   }
 
-  if (token_start < file_data->count && insert_token(token_arr, file_data->data, token_start, file_data->count) != 0) {
+  if (token_start < data_len && insert_token(token_arr, data, token_start, data_len) != 0) {
     fprintf(stderr, "Failed to insert token into tokens array\n");
     token_array_free(token_arr);
     return 1;

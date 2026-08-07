@@ -3,8 +3,6 @@
 
 #include <stdlib.h>
 
-#include "utils.h"
-
 // Using X-Macros to create TokenType enum with a generated t_type_to_string method
 #define TOKEN_TYPES                                                                                                    \
   X(T_INVALID)                                                                                                         \
@@ -38,13 +36,13 @@ typedef struct {
 } TokenArray;
 
 /*
- * Converts the file_data into a array of tokens, output into the tokens parameter
+ * Converts the data into a array of tokens, output into the tokens parameter
  * Expects TokenArray to be an uninitialised object, if not any data should be freed before this call
  * Will allocate token_arr on the heap, and should be freed with token_array_free
  * Will return 0 on success, 1 on failure (alongside logging the failure cause to stderr)
  * Note: Once TokenArray has been created, data parameter can be freed as string copies are made for each element
  */
-unsigned char lexer_process_tokens(TokenArray *token_arr, const FileData *file_data);
+unsigned char lexer_process_tokens(TokenArray *token_arr, const char *data);
 
 /*
  * Frees the memory associated with the token array object

@@ -43,15 +43,8 @@ unsigned char test_lexer() {
   for (size_t i = 0; i < num_tests; i++) {
     printf("Running test: %s\n", tests[i].name);
 
-    // TODO: Do we actually need filedata if it is storing a null terminated string, can we just pass a string directly
-    // to lexer
-    FileData file_data = {
-        .data = tests[i].input,
-        .count = strlen(tests[i].input),
-    };
-
     TokenArray token_arr;
-    unsigned char result = lexer_process_tokens(&token_arr, &file_data);
+    unsigned char result = lexer_process_tokens(&token_arr, tests[i].input);
     if (tests[i].expected_result != result) {
       fprintf(stderr, "Expected result status %d, got %d\n", tests[i].expected_result, result);
       token_array_free(&token_arr);
