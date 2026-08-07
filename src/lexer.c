@@ -75,18 +75,17 @@ unsigned char lexer_process_tokens(TokenArray *token_arr, const FileData *file_d
     }
 
     // If the current char is a separator, insert another token for the separator itself
-    if (is_separator) {
-      if (insert_token(token_arr, file_data->data, i, i + 1) != 0) {
-        fprintf(stderr, "Failed to insert token into tokens array\n");
-        token_array_free(token_arr);
-        return 1;
-      }
+    if (is_separator && insert_token(token_arr, file_data->data, i, i + 1) != 0) {
+      fprintf(stderr, "Failed to insert token into tokens array\n");
+      token_array_free(token_arr);
+      return 1;
     }
   }
 
-  for (size_t i = 0; i < token_arr->count; i++) {
-    printf("Processed Token with Value: [%s] and Type: [%s]\n", token_arr->tokens[i].item,
-           t_type_to_string(token_arr->tokens[i].t_type));
+  if (token_start < file_data->count && insert_token(token_arr, file_data->data, token_start, file_data->count) != 0) {
+    fprintf(stderr, "Failed to insert token into tokens array\n");
+    token_array_free(token_arr);
+    return 1;
   }
 
   return 0;
@@ -174,6 +173,7 @@ TokenType get_token_type(const char *token) {
 }
 
 bool is_valid_identifier(const char *token) {
+  assert(token[0] != '\0');
   if (token[0] != '_' && !isalpha(token[0])) {
     return false;
   }
@@ -190,6 +190,7 @@ bool is_valid_identifier(const char *token) {
 }
 
 bool is_numeric_literal(const char *token) {
+  assert(token[0] != '\0');
   size_t i = 0;
   while (token[i] != '\0') {
     if (!isdigit(token[i])) {

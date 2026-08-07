@@ -33,8 +33,8 @@ unsigned char read_file(FileData *file_data, const char *path) {
   }
 
   // Allocate extra character to account for null byte
-  file_data->count = file_size + 1;
   file_data->data = malloc(file_size + 1);
+  file_data->count = file_size;
   if (file_data->data == NULL) {
     fprintf(stderr, "Failed to allocate required memory for data buffer\n");
     fclose(f_ptr);
