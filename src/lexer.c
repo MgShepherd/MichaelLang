@@ -47,6 +47,7 @@ static const size_t NUM_TOKEN_MAPPINGS = (sizeof(mappings) / sizeof(mappings[0])
 unsigned char lexer_process_tokens(TokenArray *token_arr, const char *data) {
   assert(data != NULL);
 
+  token_arr->tokens = NULL;
   const size_t data_len = strlen(data);
   // If file is empty, valid program but no further processing is needed
   if (data_len == 0) {
@@ -98,7 +99,7 @@ unsigned char lexer_process_tokens(TokenArray *token_arr, const char *data) {
 }
 
 void token_array_free(TokenArray *token_arr) {
-  if (token_arr->tokens != NULL) {
+  if (token_arr != NULL && token_arr->tokens != NULL) {
     for (size_t i = 0; i < token_arr->count; i++) {
       free(token_arr->tokens[i].item);
     }

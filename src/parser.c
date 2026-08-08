@@ -4,7 +4,6 @@
 #include <assert.h>
 #include <stdio.h>
 
-// TODO: Statement array is pretty much the same as TokenArray, can we do anything to simplify this
 #define STATEMENT_ARRAY_LEN_FACTOR 0.4
 #define STATEMENT_ARRAY_REALLOC_FACTOR 2
 
@@ -39,6 +38,7 @@ const char *s_type_to_string(StatementType s) {
 
 unsigned char parse_tokens(Program *program, const TokenArray *token_arr) {
   assert(token_arr != NULL && token_arr->count > 0);
+  program->statement_arr.statements = NULL;
 
   StatementArray statement_arr;
   statement_arr.capacity = token_arr->count * STATEMENT_ARRAY_LEN_FACTOR;
@@ -87,7 +87,7 @@ unsigned char parse_tokens(Program *program, const TokenArray *token_arr) {
 }
 
 void program_free(Program *program) {
-  if (program->statement_arr.statements != NULL) {
+  if (program != NULL && program->statement_arr.statements != NULL) {
     free(program->statement_arr.statements);
   }
   program->statement_arr.statements = NULL;
