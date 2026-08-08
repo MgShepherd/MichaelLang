@@ -72,6 +72,11 @@ unsigned char test_lexer() {
       return 1;
     }
 
+    // If we expected a failure, no more checks needed at this point
+    if (tests[i].expected_result != 0) {
+      continue;
+    }
+
     if (tests[i].num_expected_tokens != token_arr.count) {
       fprintf(stderr, "Expected %zu tokens, but got %zu\n", tests[i].num_expected_tokens, token_arr.count);
       token_array_free(&token_arr);
