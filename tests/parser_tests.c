@@ -25,19 +25,29 @@ unsigned char test_parser() {
   const Statement case_1_expected_statements[] = {
       {
           .s_type = S_DECLARATION,
-          .s_union = {.dec = {.identifier = &case_1_input[0],
-                              .data_type = &case_1_input[2],
-                              .value = &case_1_input[4]}},
+          .s_union = {.dec = {.identifier = &case_1_input[0], .data_type = &case_1_input[2], .expr = &case_1_input[4]}},
       },
   };
 
   Token case_2_input[] = {
+      {.t_type = T_KEYWORD, .item = "return"},
+      {.t_type = T_IDENTIFIER, .item = "x"},
+      {.t_type = T_SEMI, .item = ";"},
+  };
+  const Statement case_2_expected_statements[] = {
+      {
+          .s_type = S_RETURN,
+          .s_union = {.ret = {.expr = &case_2_input[1]}},
+      },
+  };
+
+  Token case_3_input[] = {
       {.t_type = T_IDENTIFIER, .item = "x"},   {.t_type = T_IDENTIFIER, .item = "x"},
       {.t_type = T_KEYWORD, .item = "i32"},    {.t_type = T_EQUALS, .item = "="},
       {.t_type = T_NUMERIC_LIT, .item = "10"}, {.t_type = T_SEMI, .item = ";"},
   };
 
-  Token case_3_input[] = {
+  Token case_4_input[] = {
       {.t_type = T_IDENTIFIER, .item = "x"},   {.t_type = T_COLON, .item = ":"},
       {.t_type = T_KEYWORD, .item = "i32"},    {.t_type = T_EQUALS, .item = "="},
       {.t_type = T_NUMERIC_LIT, .item = "10"},
@@ -53,17 +63,25 @@ unsigned char test_parser() {
           .expected_statements = case_1_expected_statements,
       },
       {
-          .name = "unhappy: Invalid token type in statement",
+          .name = "happy: Single return statement - identifier",
           .input_tokens = case_2_input,
           .num_input_tokens = sizeof(case_2_input) / sizeof(Token),
+          .expected_result = 0,
+          .num_expected_statements = sizeof(case_2_expected_statements) / sizeof(Statement),
+          .expected_statements = case_2_expected_statements,
+      },
+      {
+          .name = "unhappy: Invalid token type in statement",
+          .input_tokens = case_3_input,
+          .num_input_tokens = sizeof(case_3_input) / sizeof(Token),
           .expected_result = 1,
           .num_expected_statements = 0,
           .expected_statements = NULL,
       },
       {
           .name = "unhappy: Not enough tokens to make statement",
-          .input_tokens = case_3_input,
-          .num_input_tokens = sizeof(case_3_input) / sizeof(Token),
+          .input_tokens = case_4_input,
+          .num_input_tokens = sizeof(case_4_input) / sizeof(Token),
           .expected_result = 1,
           .num_expected_statements = 0,
           .expected_statements = NULL,
@@ -118,8 +136,15 @@ unsigned char test_parser() {
           return 1;
         }
 
-        if (compare_pointers("value", tests[i].expected_statements[j].s_union.dec.value,
-                             program.statement_arr.statements[j].s_union.dec.value) != 0) {
+        if (compare_pointers("value", tests[i].expected_statements[j].s_union.dec.expr,
+                             program.statement_arr.statements[j].s_union.dec.expr) != 0) {
+          program_free(&program);
+          return 1;
+        }
+        break;
+      case S_RETURN:
+        if (compare_pointers("value", tests[i].expected_statements[j].s_union.ret.expr,
+                             program.statement_arr.statements[j].s_union.ret.expr) != 0) {
           program_free(&program);
           return 1;
         }
