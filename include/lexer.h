@@ -5,7 +5,7 @@
 
 // Using X-Macros to create TokenType enum with a generated t_type_to_string method
 #define TOKEN_TYPES                                                                                                    \
-  X(T_INVALID)                                                                                                         \
+  X(T_NONE)                                                                                                            \
   X(T_IDENTIFIER)                                                                                                      \
   X(T_NUMERIC_LIT)                                                                                                     \
   X(T_KEYWORD)                                                                                                         \

@@ -135,8 +135,9 @@ unsigned char insert_token(TokenArray *token_arr, const char *input, size_t toke
     return 1;
   }
   token_arr->tokens[token_arr->count].t_type = get_token_type(token_arr->tokens[token_arr->count].item);
-  if (token_arr->tokens[token_arr->count].t_type == T_INVALID) {
+  if (token_arr->tokens[token_arr->count].t_type == T_NONE) {
     fprintf(stderr, "Failed to process token type for token: %s\n", token_arr->tokens[token_arr->count].item);
+    free(token_arr->tokens[token_arr->count].item);
     return 1;
   }
   token_arr->count++;
@@ -176,7 +177,7 @@ TokenType get_token_type(const char *token) {
     return T_NUMERIC_LIT;
   }
 
-  return T_INVALID;
+  return T_NONE;
 }
 
 bool is_valid_identifier(const char *token) {
