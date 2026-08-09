@@ -38,7 +38,7 @@ int main() {
       printf("Declaration Statement: Identifier: %s, Data Type: %s, Value: %s\n",
              program.statement_arr.statements[i].s_union.dec.identifier->item,
              program.statement_arr.statements[i].s_union.dec.data_type->item,
-             program.statement_arr.statements[i].s_union.dec.value->item);
+             program.statement_arr.statements[i].s_union.dec.expr->item);
       break;
     default:
       printf("Unexpected statement type %s\n", s_type_to_string(program.statement_arr.statements[i].s_type));
