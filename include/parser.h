@@ -9,14 +9,16 @@
 //
 // Statement := FunctionStatement | DeclarationStatement | ReturnStatement
 // FunctionStatement := 'func' T_IDENTIFIER '(' ')' '->' DataType '{' [Statement] '}'
-// DeclarationStatement := T_IDENTIFIER ':' DataType '=' T_NUMERIC_LITERAL ';'
-// ReturnStatement := 'return' T_IDENTIFIER ';'
+// DeclarationStatement := T_IDENTIFIER ':' DataType '=' Expression ';'
+// ReturnStatement := 'return' Expression ';'
+// Expression := T_IDENTIFIER | T_NUMERIC_LITERAL
 //
 // DataType := 'i32'
 
 #define STATEMENT_TYPES                                                                                                \
   X(S_INVALID)                                                                                                         \
-  X(S_DECLARATION)
+  X(S_DECLARATION)                                                                                                     \
+  X(S_RETURN)
 
 #define X(N) N,
 typedef enum { STATEMENT_TYPES } StatementType;
@@ -28,12 +30,17 @@ const char *s_type_to_string(StatementType s);
 typedef struct {
   const Token *identifier;
   const Token *data_type;
-  const Token *value;
+  const Token *expr;
 } DeclarationStatement;
+
+typedef struct {
+  const Token *expr;
+} ReturnStatement;
 
 // Create the Statement "tagged union" by attached the StatementUnion with an enum value
 typedef union {
   DeclarationStatement dec;
+  ReturnStatement ret;
 } StatementUnion;
 
 typedef struct {

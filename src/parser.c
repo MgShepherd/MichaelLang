@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 #define STATEMENT_ARRAY_LEN_FACTOR 0.4
 #define STATEMENT_ARRAY_REALLOC_FACTOR 2
@@ -15,11 +16,26 @@
 Statement parse_dec_statement(const TokenArray *token_arr, size_t *idx);
 
 /*
+ * Will set the ret property of statement union for a valid return statement
+ * Will return an s_type of S_INVALID when statement is not a valid return
+ * Will additionally update the idx pointer to point at the next statement if valid
+ */
+Statement parse_ret_statement(const TokenArray *token_arr, size_t *idx);
+
+/*
  * expect_next will read the next token and check it matches the expected token type
  * If matches will return the token pointer, otherwise will return NULL
  * Will update the idx pointer to point at the next token when valid
  */
 const Token *expect_next(TokenType expected, const TokenArray *token_arr, size_t *idx);
+
+/*
+ * parse_expression will check whether the next tokens can be used as expression
+ * Currently, this is either a T_IDENTIFIER or T_NUMERIC_LIT but may be expanded in future
+ * Will update the idx pointer to point at the next token when valid
+ * Will return NULL if no next token exists or the token type does not match
+ */
+const Token *parse_expression(const TokenArray *token_arr, size_t *idx);
 
 unsigned char insert_statement(StatementArray *statement_arr, Statement *statement);
 
@@ -63,6 +79,9 @@ unsigned char parse_tokens(Program *program, const TokenArray *token_arr) {
     switch (token_arr->tokens[i].t_type) {
     case T_IDENTIFIER:
       statement = parse_dec_statement(token_arr, &i);
+      break;
+    case T_KEYWORD:
+      statement = parse_ret_statement(token_arr, &i);
       break;
     default:
       fprintf(stderr, "Unexpected Token Type: %s\n", t_type_to_string(token_arr->tokens[i].t_type));
@@ -123,9 +142,9 @@ Statement parse_dec_statement(const TokenArray *token_arr, size_t *idx) {
     return statement;
   }
 
-  dec.value = expect_next(T_NUMERIC_LIT, token_arr, idx);
-  if (dec.value == NULL) {
-    fprintf(stderr, "Failed to read numeric literal for declaration statement\n");
+  dec.expr = parse_expression(token_arr, idx);
+  if (dec.expr == NULL) {
+    fprintf(stderr, "Failed to get value token\n");
     return statement;
   }
 
@@ -140,20 +159,64 @@ Statement parse_dec_statement(const TokenArray *token_arr, size_t *idx) {
   return statement;
 }
 
+Statement parse_ret_statement(const TokenArray *token_arr, size_t *idx) {
+  Statement statement;
+  statement.s_type = S_INVALID;
+  ReturnStatement ret;
+
+  const Token *ret_token = expect_next(T_KEYWORD, token_arr, idx);
+  if (ret_token == NULL || strcmp(ret_token->item, "return") != 0) {
+    fprintf(stderr, "Expected keyword return\n");
+    return statement;
+  }
+
+  ret.expr = parse_expression(token_arr, idx);
+  if (ret.expr == NULL) {
+    fprintf(stderr, "Failed to get value token\n");
+    return statement;
+  }
+
+  if (expect_next(T_SEMI, token_arr, idx) == NULL) {
+    fprintf(stderr, "Failed to read semicolon for return statement\n");
+    return statement;
+  }
+
+  statement.s_type = S_RETURN;
+  statement.s_union.ret = ret;
+
+  return statement;
+}
+
 const Token *expect_next(TokenType expected, const TokenArray *token_arr, size_t *idx) {
   if (*idx >= token_arr->count) {
-    fprintf(stderr, "Expected Token type %s, but reached end of input\n", t_type_to_string(expected));
+    fprintf(stderr, "Attempted to get next token but reached end of input\n");
     return NULL;
   }
 
-  if (token_arr->tokens[*idx].t_type != expected) {
-    fprintf(stderr, "Expected Token Type %s, but got %s\n", t_type_to_string(expected),
-            t_type_to_string(token_arr->tokens[*idx].t_type));
+  const Token *next = &token_arr->tokens[*idx];
+  if (next->t_type != expected) {
+    fprintf(stderr, "Expected Token Type %s, but got %s\n", t_type_to_string(expected), t_type_to_string(next->t_type));
     return NULL;
   }
 
   *idx += 1;
-  return &token_arr->tokens[*idx - 1];
+  return next;
+}
+
+const Token *parse_expression(const TokenArray *token_arr, size_t *idx) {
+  if (*idx >= token_arr->count) {
+    fprintf(stderr, "Attempted to get value token but reached end of input\n");
+    return NULL;
+  }
+
+  const Token *next = &token_arr->tokens[*idx];
+  if (next->t_type != T_IDENTIFIER && next->t_type != T_NUMERIC_LIT) {
+    fprintf(stderr, "Expected next token to be literal or identifier, got %s\n", t_type_to_string(next->t_type));
+    return NULL;
+  }
+
+  *idx += 1;
+  return next;
 }
 
 unsigned char insert_statement(StatementArray *statement_arr, Statement *statement) {
