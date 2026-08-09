@@ -3,24 +3,44 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define STATEMENT_ARRAY_LEN_FACTOR 0.4
 #define STATEMENT_ARRAY_REALLOC_FACTOR 2
+#define FUNCTION_STATEMENTS_LEN_ESTIMATE 10
+
+/*
+ * Will parse a series of statements either until end of input or a token of type exit_token is reached
+ * Starts processing tokens from the provided idx and will update the idx pointer to end up at end of processed tokens
+ * If you want to keep parsing until end of input, provided T_NONE for exit token
+ * Will output the parsed statements into the statement_arr parameter
+ * Assumes statement_arr already has an allocated statement array, with a count and capacity
+ * Returns 0 on success, 1 if there was a failure
+ */
+unsigned char parse_statements(StatementArray *statement_arr, const TokenArray *token_arr, size_t *idx,
+                               TokenType exit_token);
 
 /*
  * Will set the dec property of statement union for a valid declaration statement
- * Will return an s_type of S_INVALID when statement is not a valid declaration
+ * Will return an s_type of S_NONE when statement is not a valid declaration
  * Will additionally update the idx pointer to point at the next statement if valid
  */
 Statement parse_dec_statement(const TokenArray *token_arr, size_t *idx);
 
 /*
  * Will set the ret property of statement union for a valid return statement
- * Will return an s_type of S_INVALID when statement is not a valid return
+ * Will return an s_type of S_NONE when statement is not a valid return
  * Will additionally update the idx pointer to point at the next statement if valid
  */
 Statement parse_ret_statement(const TokenArray *token_arr, size_t *idx);
+
+/*
+ * Will set the func property of statement union for a valid function statement
+ * Will return an s_type of S_NONE when statement is not a valid function
+ * Will additionally update the idx pointer to point at the next statement if valid
+ */
+Statement parse_func_statement(const TokenArray *token_arr, size_t *idx);
 
 /*
  * expect_next will read the next token and check it matches the expected token type
@@ -38,6 +58,8 @@ const Token *expect_next(TokenType expected, const TokenArray *token_arr, size_t
 const Token *parse_expression(const TokenArray *token_arr, size_t *idx);
 
 unsigned char insert_statement(StatementArray *statement_arr, Statement *statement);
+
+void free_statement_array(StatementArray *statement_arr);
 
 #define X(N)                                                                                                           \
   case N:                                                                                                              \
@@ -71,33 +93,11 @@ unsigned char parse_tokens(Program *program, const TokenArray *token_arr) {
     return 1;
   }
 
-  size_t i = 0;
-  while (i < token_arr->count) {
-    Statement statement;
-    statement.s_type = S_INVALID;
-
-    switch (token_arr->tokens[i].t_type) {
-    case T_IDENTIFIER:
-      statement = parse_dec_statement(token_arr, &i);
-      break;
-    case T_KEYWORD:
-      statement = parse_ret_statement(token_arr, &i);
-      break;
-    default:
-      fprintf(stderr, "Unexpected Token Type: %s\n", t_type_to_string(token_arr->tokens[i].t_type));
-    }
-
-    if (statement.s_type == S_INVALID) {
-      fprintf(stderr, "Failed to process next statement\n");
-      free(statement_arr.statements);
-      return 1;
-    }
-
-    if (insert_statement(&statement_arr, &statement) != 0) {
-      fprintf(stderr, "Failed to insert statement\n");
-      free(statement_arr.statements);
-      return 1;
-    }
+  size_t idx = 0;
+  if (parse_statements(&statement_arr, token_arr, &idx, T_NONE) != 0) {
+    fprintf(stderr, "Failed to parse statements\n");
+    free_statement_array(&statement_arr);
+    return 1;
   }
 
   program->statement_arr = statement_arr;
@@ -105,18 +105,52 @@ unsigned char parse_tokens(Program *program, const TokenArray *token_arr) {
   return 0;
 }
 
+unsigned char parse_statements(StatementArray *statement_arr, const TokenArray *token_arr, size_t *idx,
+                               TokenType exit_token) {
+  while (*idx < token_arr->count && token_arr->tokens[*idx].t_type != exit_token) {
+    Statement statement;
+    statement.s_type = S_NONE;
+
+    switch (token_arr->tokens[*idx].t_type) {
+    case T_IDENTIFIER:
+      statement = parse_dec_statement(token_arr, idx);
+      break;
+    case T_KEYWORD:
+      if (strcmp(token_arr->tokens[*idx].item, "return") == 0) {
+        statement = parse_ret_statement(token_arr, idx);
+      } else if (strcmp(token_arr->tokens[*idx].item, "func") == 0) {
+        statement = parse_func_statement(token_arr, idx);
+      } else {
+        fprintf(stderr, "Unexpected keyword token: %s\n", token_arr->tokens[*idx].item);
+      }
+      break;
+    default:
+      fprintf(stderr, "Unexpected Token Type: %s\n", t_type_to_string(token_arr->tokens[*idx].t_type));
+    }
+
+    if (statement.s_type == S_NONE) {
+      fprintf(stderr, "Failed to process next statement\n");
+      return 1;
+    }
+
+    if (insert_statement(statement_arr, &statement) != 0) {
+      fprintf(stderr, "Failed to insert statement\n");
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
 void program_free(Program *program) {
   if (program != NULL && program->statement_arr.statements != NULL) {
-    free(program->statement_arr.statements);
+    free_statement_array(&program->statement_arr);
   }
-  program->statement_arr.statements = NULL;
-  program->statement_arr.count = 0;
-  program->statement_arr.capacity = 0;
 }
 
 Statement parse_dec_statement(const TokenArray *token_arr, size_t *idx) {
   Statement statement;
-  statement.s_type = S_INVALID;
+  statement.s_type = S_NONE;
   DeclarationStatement dec;
 
   dec.identifier = expect_next(T_IDENTIFIER, token_arr, idx);
@@ -161,12 +195,11 @@ Statement parse_dec_statement(const TokenArray *token_arr, size_t *idx) {
 
 Statement parse_ret_statement(const TokenArray *token_arr, size_t *idx) {
   Statement statement;
-  statement.s_type = S_INVALID;
+  statement.s_type = S_NONE;
   ReturnStatement ret;
 
-  const Token *ret_token = expect_next(T_KEYWORD, token_arr, idx);
-  if (ret_token == NULL || strcmp(ret_token->item, "return") != 0) {
-    fprintf(stderr, "Expected keyword return\n");
+  if (expect_next(T_KEYWORD, token_arr, idx) == NULL) {
+    fprintf(stderr, "Expected keyword token for return statement\n");
     return statement;
   }
 
@@ -183,6 +216,78 @@ Statement parse_ret_statement(const TokenArray *token_arr, size_t *idx) {
 
   statement.s_type = S_RETURN;
   statement.s_union.ret = ret;
+
+  return statement;
+}
+
+Statement parse_func_statement(const TokenArray *token_arr, size_t *idx) {
+  Statement statement;
+  statement.s_type = S_NONE;
+  FunctionStatement func;
+
+  if (expect_next(T_KEYWORD, token_arr, idx) == NULL) {
+    fprintf(stderr, "Expected keyword token for function statement\n");
+    return statement;
+  }
+
+  func.identifier = expect_next(T_IDENTIFIER, token_arr, idx);
+  if (func.identifier == NULL) {
+    fprintf(stderr, "Failed to get identifier for function\n");
+    return statement;
+  }
+
+  if (expect_next(T_LEFT_PAREN, token_arr, idx) == NULL) {
+    fprintf(stderr, "Expected opening parenthesis in function statement\n");
+    return statement;
+  }
+
+  if (expect_next(T_RIGHT_PAREN, token_arr, idx) == NULL) {
+    fprintf(stderr, "Expected closing parenthesis in function statement\n");
+    return statement;
+  }
+
+  if (expect_next(T_ARROW, token_arr, idx) == NULL) {
+    fprintf(stderr, "Expected arrow in function statement\n");
+    return statement;
+  }
+
+  // TODO: Currently just checking for any keyword here, should make sure this is a datatype
+  func.return_type = expect_next(T_KEYWORD, token_arr, idx);
+  if (func.return_type == NULL) {
+    fprintf(stderr, "Expected return type for function\n");
+    return statement;
+  }
+
+  if (expect_next(T_LEFT_CURLY, token_arr, idx) == NULL) {
+    fprintf(stderr, "Expected opening curly brace before function body\n");
+    return statement;
+  }
+
+  StatementArray statement_arr;
+  statement_arr.capacity = FUNCTION_STATEMENTS_LEN_ESTIMATE;
+  statement_arr.count = 0;
+  statement_arr.statements = malloc(statement_arr.capacity * sizeof(Statement));
+
+  if (statement_arr.statements == NULL) {
+    fprintf(stderr, "Failed to allocate required memory for function statement array\n");
+    return statement;
+  }
+
+  if (parse_statements(&statement_arr, token_arr, idx, T_RIGHT_CURLY) != 0) {
+    fprintf(stderr, "Failed to process function body\n");
+    free_statement_array(&statement_arr);
+    return statement;
+  }
+  func.statement_arr = statement_arr;
+
+  if (expect_next(T_RIGHT_CURLY, token_arr, idx) == NULL) {
+    fprintf(stderr, "Expected closing curly brace after function body\n");
+    free_statement_array(&statement_arr);
+    return statement;
+  }
+
+  statement.s_type = S_FUNCTION;
+  statement.s_union.func = func;
 
   return statement;
 }
@@ -235,4 +340,23 @@ unsigned char insert_statement(StatementArray *statement_arr, Statement *stateme
   statement_arr->statements[statement_arr->count++] = *statement;
 
   return 0;
+}
+
+void free_statement_array(StatementArray *statement_arr) {
+  if (statement_arr == NULL) {
+    return;
+  }
+  for (size_t i = 0; i < statement_arr->count; i++) {
+    switch (statement_arr->statements[i].s_type) {
+    case S_FUNCTION:
+      free_statement_array(&statement_arr->statements[i].s_union.func.statement_arr);
+      break;
+    default:
+      break;
+    }
+  }
+  free(statement_arr->statements);
+  statement_arr->statements = NULL;
+  statement_arr->count = 0;
+  statement_arr->capacity = 0;
 }
