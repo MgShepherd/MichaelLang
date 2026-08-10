@@ -5,7 +5,7 @@ BUILD_DIR := build
 
 LLVM_C_FLAGS := $(shell llvm-config --cflags)
 LLVM_LD_FLAGS := $(shell llvm-config --ldflags)
-LLVM_LIBS := $(shell llvm-config --libs)
+LLVM_LIBS := $(shell llvm-config --libs core)
 LLVM_SYSLIBS := $(shell llvm-config --system-libs)
 CFLAGS := -Wall -Wextra -g -std=c23 -I./include $(LLVM_C_FLAGS)
 
@@ -29,7 +29,7 @@ $(TARGET): $(OBJS)
 	$(CC) $(LD_FLAGS) $(OBJS) -o $@ $(LIBS)
 
 $(TEST_TARGET): $(TEST_OBJS)
-	$(CC) $(TEST_OBJS) -o $@
+	$(CC) $(LD_FLAGS) $(TEST_OBJS) -o $@ $(LIBS)
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
