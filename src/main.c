@@ -1,4 +1,5 @@
 #include "lexer.h"
+#include "llvm_ir.h"
 #include "parser.h"
 #include "utils.h"
 
@@ -45,6 +46,14 @@ int main() {
     }
   }
 
+  if (llvm_ir_from_program(&program) != 0) {
+    fprintf(stderr, "Failed to build LLVM IR from program AST\n");
+    program_free(&program);
+    token_array_free(&token_arr);
+    return 1;
+  }
+
+  printf("Compilation succeeded\n");
   program_free(&program);
   token_array_free(&token_arr);
 

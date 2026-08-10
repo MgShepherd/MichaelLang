@@ -1,8 +1,16 @@
 CC := clang
-CFLAGS := -Wall -Wextra -g -std=c23 -I./include
 SRC_DIR := src
 TEST_DIR := tests
 BUILD_DIR := build
+
+LLVM_C_FLAGS := $(shell llvm-config --cflags)
+LLVM_LD_FLAGS := $(shell llvm-config --ldflags)
+LLVM_LIBS := $(shell llvm-config --libs)
+LLVM_SYSLIBS := $(shell llvm-config --system-libs)
+CFLAGS := -Wall -Wextra -g -std=c23 -I./include $(LLVM_C_FLAGS)
+
+LIBS := $(LLVM_LIBS) $(LLVM_SYSLIBS)
+LD_FLAGS := $(LLVM_LD_FLAGS)
 
 TARGET := $(BUILD_DIR)/Compiler
 TEST_TARGET := $(BUILD_DIR)/CompilerTests
@@ -18,7 +26,7 @@ TEST_OBJS := $(TEST_SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o) $(TEST_FILE:$(TEST_DIR
 all: $(TARGET)
 
 $(TARGET): $(OBJS)
-	$(CC) $(OBJS) -o $@
+	$(CC) $(LD_FLAGS) $(OBJS) -o $@ $(LIBS)
 
 $(TEST_TARGET): $(TEST_OBJS)
 	$(CC) $(TEST_OBJS) -o $@
