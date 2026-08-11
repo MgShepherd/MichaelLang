@@ -12,5 +12,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Install LLVM
+      run: sudo apt update && sudo apt install llvm
     - name: test
       run: make test
