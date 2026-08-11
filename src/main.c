@@ -41,6 +41,9 @@ int main() {
              program.statement_arr.statements[i].s_union.dec.data_type->item,
              program.statement_arr.statements[i].s_union.dec.expr->item);
       break;
+    case S_RETURN:
+      printf("Return Statement: Value: %s\n", program.statement_arr.statements[i].s_union.ret.expr->item);
+      break;
     default:
       printf("Unexpected statement type %s\n", s_type_to_string(program.statement_arr.statements[i].s_type));
     }
