@@ -47,18 +47,22 @@ typedef struct {
 } ReturnStatement;
 
 // TODO: Functions eventually need to take parameters - for now always empty
-// TODO: Due to the way our parsing works, we currently support nested functions, should that be the case
 typedef struct {
   const Token *identifier;
   const Token *return_type;
   StatementArray statement_arr;
-} FunctionStatement;
+} Function;
+
+typedef struct {
+  Function *functions;
+  size_t count;
+  size_t capacity;
+} FunctionArray;
 
 // Create the Statement "tagged union" by attached the StatementUnion with an enum value
 typedef union {
   DeclarationStatement dec;
   ReturnStatement ret;
-  FunctionStatement func;
 } StatementUnion;
 
 struct Statement {
@@ -67,7 +71,7 @@ struct Statement {
 };
 
 typedef struct {
-  StatementArray statement_arr;
+  FunctionArray function_arr;
 } Program;
 
 /*

@@ -6,20 +6,36 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define STATEMENT_ARRAY_LEN_FACTOR 0.4
-#define STATEMENT_ARRAY_REALLOC_FACTOR 2
+#define FUNCTION_ARRAY_LEN_FACTOR 0.1
+#define ARRAY_REALLOC_FACTOR 2
 #define FUNCTION_STATEMENTS_LEN_ESTIMATE 10
 
 /*
- * Will parse a series of statements either until end of input or a token of type exit_token is reached
+ * Will parse a series of functions either until end of input to build a program
+ * Starts processing from the first element in tokens
+ * Will output the parsed statements into the function_arr parameter
+ * Assumes function_arr already has an allocated function array, with a count and capacity
+ * Returns 0 on success, 1 if there was a failure
+ */
+unsigned char parse_functions(FunctionArray *function_arr, const TokenArray *token_arr);
+
+/*
+ * Will parse a series of statements either until a token of type exit_token is reached
  * Starts processing tokens from the provided idx and will update the idx pointer to end up at end of processed tokens
- * If you want to keep parsing until end of input, provided T_NONE for exit token
  * Will output the parsed statements into the statement_arr parameter
  * Assumes statement_arr already has an allocated statement array, with a count and capacity
+ * Will error if exit_token is not found before reaching the end of the input
  * Returns 0 on success, 1 if there was a failure
  */
 unsigned char parse_statements(StatementArray *statement_arr, const TokenArray *token_arr, size_t *idx,
                                TokenType exit_token);
+
+/*
+ * Will parse a function and all its statements into provided function parameter
+ * Will return 0 on success, 1 on failure
+ * Will additionally update the idx pointer to point at the next statement if valid
+ */
+unsigned char parse_function(Function *function, const TokenArray *token_arr, size_t *idx);
 
 /*
  * Will set the dec property of statement union for a valid declaration statement
@@ -34,13 +50,6 @@ Statement parse_dec_statement(const TokenArray *token_arr, size_t *idx);
  * Will additionally update the idx pointer to point at the next statement if valid
  */
 Statement parse_ret_statement(const TokenArray *token_arr, size_t *idx);
-
-/*
- * Will set the func property of statement union for a valid function statement
- * Will return an s_type of S_NONE when statement is not a valid function
- * Will additionally update the idx pointer to point at the next statement if valid
- */
-Statement parse_func_statement(const TokenArray *token_arr, size_t *idx);
 
 /*
  * expect_next will read the next token and check it matches the expected token type
@@ -59,6 +68,10 @@ const Token *parse_expression(const TokenArray *token_arr, size_t *idx);
 
 unsigned char insert_statement(StatementArray *statement_arr, Statement *statement);
 
+unsigned char insert_function(FunctionArray *function_arr, Function *function);
+
+void free_function_array(FunctionArray *function);
+
 void free_statement_array(StatementArray *statement_arr);
 
 #define X(N)                                                                                                           \
@@ -76,31 +89,54 @@ const char *s_type_to_string(StatementType s) {
 
 unsigned char parse_tokens(Program *program, const TokenArray *token_arr) {
   assert(token_arr != NULL && token_arr->count > 0);
-  program->statement_arr.statements = NULL;
+  program->function_arr.functions = NULL;
 
-  StatementArray statement_arr;
-  statement_arr.capacity = token_arr->count * STATEMENT_ARRAY_LEN_FACTOR;
+  FunctionArray function_arr;
+  function_arr.capacity = token_arr->count * FUNCTION_ARRAY_LEN_FACTOR;
   // Guard against getting 0 capacity when token input size is very small
-  if (statement_arr.capacity == 0) {
-    statement_arr.capacity = 1;
+  if (function_arr.capacity == 0) {
+    function_arr.capacity = 1;
   }
 
-  statement_arr.count = 0;
-  statement_arr.statements = malloc(statement_arr.capacity * sizeof(Statement));
+  function_arr.count = 0;
+  function_arr.functions = malloc(function_arr.capacity * sizeof(Function));
 
-  if (statement_arr.statements == NULL) {
-    fprintf(stderr, "Failed to allocate required space for statements array\n");
+  if (function_arr.functions == NULL) {
+    fprintf(stderr, "Failed to allocate required space for functions array\n");
     return 1;
   }
 
+  if (parse_functions(&function_arr, token_arr) != 0) {
+    fprintf(stderr, "Failed to parse functions\n");
+    free_function_array(&function_arr);
+    return 1;
+  }
+
+  program->function_arr = function_arr;
+
+  return 0;
+}
+
+unsigned char parse_functions(FunctionArray *function_arr, const TokenArray *token_arr) {
   size_t idx = 0;
-  if (parse_statements(&statement_arr, token_arr, &idx, T_NONE) != 0) {
-    fprintf(stderr, "Failed to parse statements\n");
-    free_statement_array(&statement_arr);
-    return 1;
-  }
+  while (idx < token_arr->count) {
+    if (token_arr->tokens[idx].t_type != T_KEYWORD) {
+      fprintf(stderr, "Expected %s token for function begin, got %s\n", t_type_to_string(T_KEYWORD),
+              t_type_to_string(token_arr->tokens[idx].t_type));
+      return 1;
+    }
 
-  program->statement_arr = statement_arr;
+    Function func;
+    if (parse_function(&func, token_arr, &idx) != 0) {
+      fprintf(stderr, "Failed to parse function\n");
+      return 1;
+    }
+
+    if (insert_function(function_arr, &func) != 0) {
+      fprintf(stderr, "Failed to insert function into function array\n");
+      return 1;
+    }
+  }
 
   return 0;
 }
@@ -116,13 +152,7 @@ unsigned char parse_statements(StatementArray *statement_arr, const TokenArray *
       statement = parse_dec_statement(token_arr, idx);
       break;
     case T_KEYWORD:
-      if (strcmp(token_arr->tokens[*idx].item, "return") == 0) {
-        statement = parse_ret_statement(token_arr, idx);
-      } else if (strcmp(token_arr->tokens[*idx].item, "func") == 0) {
-        statement = parse_func_statement(token_arr, idx);
-      } else {
-        fprintf(stderr, "Unexpected keyword token: %s\n", token_arr->tokens[*idx].item);
-      }
+      statement = parse_ret_statement(token_arr, idx);
       break;
     default:
       fprintf(stderr, "Unexpected Token Type: %s\n", t_type_to_string(token_arr->tokens[*idx].t_type));
@@ -139,12 +169,17 @@ unsigned char parse_statements(StatementArray *statement_arr, const TokenArray *
     }
   }
 
+  if (*idx == token_arr->count) {
+    fprintf(stderr, "Reached end of input before finding block ending token\n");
+    return 1;
+  }
+
   return 0;
 }
 
 void program_free(Program *program) {
-  if (program != NULL && program->statement_arr.statements != NULL) {
-    free_statement_array(&program->statement_arr);
+  if (program != NULL && program->function_arr.functions != NULL) {
+    free_function_array(&program->function_arr);
   }
 }
 
@@ -220,47 +255,43 @@ Statement parse_ret_statement(const TokenArray *token_arr, size_t *idx) {
   return statement;
 }
 
-Statement parse_func_statement(const TokenArray *token_arr, size_t *idx) {
-  Statement statement;
-  statement.s_type = S_NONE;
-  FunctionStatement func;
-
+unsigned char parse_function(Function *function, const TokenArray *token_arr, size_t *idx) {
   if (expect_next(T_KEYWORD, token_arr, idx) == NULL) {
-    fprintf(stderr, "Expected keyword token for function statement\n");
-    return statement;
+    fprintf(stderr, "Expected keyword token for function\n");
+    return 1;
   }
 
-  func.identifier = expect_next(T_IDENTIFIER, token_arr, idx);
-  if (func.identifier == NULL) {
+  function->identifier = expect_next(T_IDENTIFIER, token_arr, idx);
+  if (function->identifier == NULL) {
     fprintf(stderr, "Failed to get identifier for function\n");
-    return statement;
+    return 1;
   }
 
   if (expect_next(T_LEFT_PAREN, token_arr, idx) == NULL) {
-    fprintf(stderr, "Expected opening parenthesis in function statement\n");
-    return statement;
+    fprintf(stderr, "Expected opening parenthesis in function\n");
+    return 1;
   }
 
   if (expect_next(T_RIGHT_PAREN, token_arr, idx) == NULL) {
-    fprintf(stderr, "Expected closing parenthesis in function statement\n");
-    return statement;
+    fprintf(stderr, "Expected closing parenthesis in function\n");
+    return 1;
   }
 
   if (expect_next(T_ARROW, token_arr, idx) == NULL) {
-    fprintf(stderr, "Expected arrow in function statement\n");
-    return statement;
+    fprintf(stderr, "Expected arrow in function\n");
+    return 1;
   }
 
   // TODO: Currently just checking for any keyword here, should make sure this is a datatype
-  func.return_type = expect_next(T_KEYWORD, token_arr, idx);
-  if (func.return_type == NULL) {
+  function->return_type = expect_next(T_KEYWORD, token_arr, idx);
+  if (function->return_type == NULL) {
     fprintf(stderr, "Expected return type for function\n");
-    return statement;
+    return 1;
   }
 
   if (expect_next(T_LEFT_CURLY, token_arr, idx) == NULL) {
     fprintf(stderr, "Expected opening curly brace before function body\n");
-    return statement;
+    return 1;
   }
 
   StatementArray statement_arr;
@@ -270,26 +301,23 @@ Statement parse_func_statement(const TokenArray *token_arr, size_t *idx) {
 
   if (statement_arr.statements == NULL) {
     fprintf(stderr, "Failed to allocate required memory for function statement array\n");
-    return statement;
+    return 1;
   }
 
   if (parse_statements(&statement_arr, token_arr, idx, T_RIGHT_CURLY) != 0) {
     fprintf(stderr, "Failed to process function body\n");
     free_statement_array(&statement_arr);
-    return statement;
+    return 1;
   }
-  func.statement_arr = statement_arr;
+  function->statement_arr = statement_arr;
 
   if (expect_next(T_RIGHT_CURLY, token_arr, idx) == NULL) {
     fprintf(stderr, "Expected closing curly brace after function body\n");
     free_statement_array(&statement_arr);
-    return statement;
+    return 1;
   }
 
-  statement.s_type = S_FUNCTION;
-  statement.s_union.func = func;
-
-  return statement;
+  return 0;
 }
 
 const Token *expect_next(TokenType expected, const TokenArray *token_arr, size_t *idx) {
@@ -324,11 +352,30 @@ const Token *parse_expression(const TokenArray *token_arr, size_t *idx) {
   return next;
 }
 
+// TODO: Can we combine some of the function and statement operations like this to avoid duplication
+unsigned char insert_function(FunctionArray *function_arr, Function *function) {
+  assert(function_arr->functions != NULL);
+
+  if (function_arr->count >= function_arr->capacity) {
+    function_arr->capacity = function_arr->capacity * ARRAY_REALLOC_FACTOR;
+    Function *new_functions = realloc(function_arr->functions, function_arr->capacity * sizeof(Function));
+    if (new_functions == NULL) {
+      fprintf(stderr, "Failed to allocate additional required space for functions array\n");
+      return 1;
+    }
+    function_arr->functions = new_functions;
+  }
+
+  function_arr->functions[function_arr->count++] = *function;
+
+  return 0;
+}
+
 unsigned char insert_statement(StatementArray *statement_arr, Statement *statement) {
   assert(statement_arr->statements != NULL);
 
   if (statement_arr->count >= statement_arr->capacity) {
-    statement_arr->capacity = statement_arr->capacity * STATEMENT_ARRAY_REALLOC_FACTOR;
+    statement_arr->capacity = statement_arr->capacity * ARRAY_REALLOC_FACTOR;
     Statement *new_statements = realloc(statement_arr->statements, statement_arr->capacity * sizeof(Statement));
     if (new_statements == NULL) {
       fprintf(stderr, "Failed to allocate additional required space for statements array\n");
@@ -342,19 +389,25 @@ unsigned char insert_statement(StatementArray *statement_arr, Statement *stateme
   return 0;
 }
 
+void free_function_array(FunctionArray *function_arr) {
+  if (function_arr == NULL) {
+    return;
+  }
+  for (size_t i = 0; i < function_arr->count; i++) {
+    free_statement_array(&function_arr->functions[i].statement_arr);
+  }
+
+  free(function_arr->functions);
+  function_arr->functions = NULL;
+  function_arr->count = 0;
+  function_arr->capacity = 0;
+}
+
 void free_statement_array(StatementArray *statement_arr) {
   if (statement_arr == NULL) {
     return;
   }
-  for (size_t i = 0; i < statement_arr->count; i++) {
-    switch (statement_arr->statements[i].s_type) {
-    case S_FUNCTION:
-      free_statement_array(&statement_arr->statements[i].s_union.func.statement_arr);
-      break;
-    default:
-      break;
-    }
-  }
+
   free(statement_arr->statements);
   statement_arr->statements = NULL;
   statement_arr->count = 0;
