@@ -36,7 +36,16 @@ exhaustive list and is subject to change):
 
 As there are currently no releases of the compiler, the project must be built directly from source.
 
-To do this, simply run:
+### Dependencies
+
+This project currently uses LLVM as a compiler backend and uses clang to convert the object file into
+a native executable.
+
+As a result, to build the compiler from source both LLVM and Clang must be installed on the system.
+
+### Building
+
+Assuming all the dependencies are installed, simply run:
 ```
 make
 ```

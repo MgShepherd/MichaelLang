@@ -1,4 +1,4 @@
-#include "llvm_ir.h"
+#include "llvm.h"
 #include "lexer.h"
 #include "parser.h"
 #include "llvm-c/Types.h"
@@ -16,7 +16,6 @@
 
 #define MODULE_NAME "main"
 #define INT_BASE 10
-#define OUTPUT_FILE "build/out.o"
 
 typedef struct {
   LLVMContextRef context;
@@ -30,12 +29,11 @@ LLVMTypeRef get_type(const IRState *state, const Token *token);
 void build_statement(const IRState *state, const Statement *statement);
 void build_return_statement(const IRState *state, const ReturnStatement *ret);
 
-unsigned char generate_object_file(const IRState *state);
+unsigned char generate_object_file(const IRState *state, const char *file_name);
 
 void dispose_ir_state(const IRState *state);
 
-// TODO: Consider renaming function as it also generates object file, not just build ir
-unsigned char llvm_ir_from_program(const Program *program) {
+unsigned char program_to_object_file(const Program *program, const char *file_name) {
   assert(program != NULL);
 
   // TODO: This creation logic will need updating when supporting multiple source files
@@ -68,12 +66,7 @@ unsigned char llvm_ir_from_program(const Program *program) {
     return 1;
   }
 
-  char *module_info = LLVMPrintModuleToString(state.module);
-  printf("LLVM Module: %s\n", module_info);
-  LLVMDisposeMessage(module_info);
-
-  // TODO: Build the executable file from the object file
-  if (generate_object_file(&state) != 0) {
+  if (generate_object_file(&state, file_name) != 0) {
     fprintf(stderr, "Failed to generated object file from LLVM IR\n");
     dispose_ir_state(&state);
     return 1;
@@ -150,7 +143,7 @@ void build_return_statement(const IRState *state, const ReturnStatement *ret) {
   }
 }
 
-unsigned char generate_object_file(const IRState *state) {
+unsigned char generate_object_file(const IRState *state, const char *file_name) {
   LLVMInitializeNativeTarget();
   LLVMInitializeNativeAsmParser();
   LLVMInitializeNativeAsmPrinter();
@@ -172,7 +165,7 @@ unsigned char generate_object_file(const IRState *state) {
   LLVMSetModuleDataLayout(state->module, target_data);
 
   unsigned char status = 0;
-  if (LLVMTargetMachineEmitToFile(target_machine, state->module, OUTPUT_FILE, LLVMObjectFile, &error_message) != 0) {
+  if (LLVMTargetMachineEmitToFile(target_machine, state->module, file_name, LLVMObjectFile, &error_message) != 0) {
     fprintf(stderr, "Failed to generate object file for machine, error: %s\n", error_message);
     LLVMDisposeMessage(error_message);
     status = 1;

@@ -3,6 +3,9 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+bool has_suffix(const char *input, const char *suffix);
 
 char *read_file(const char *path) {
   FILE *f_ptr = fopen(path, "r");
@@ -68,4 +71,49 @@ char *string_slice(const char *input, size_t slice_start, size_t slice_end) {
 
   output[slice_end - slice_start] = '\0';
   return output;
+}
+
+unsigned char obj_to_executable(const char *input_file, const char *output_file) {
+  assert(has_suffix(input_file, ".o"));
+
+  size_t cmd_len = strlen("clang ") + strlen(input_file) + strlen(" -o ") + strlen(output_file) + 1;
+  char *command = malloc(cmd_len * sizeof(char));
+
+  if (command == NULL) {
+    fprintf(stderr, "Failed to allocate enough memory for executable generation command\n");
+    return 1;
+  }
+
+  if (snprintf(command, cmd_len, "clang %s -o %s", input_file, output_file) < 0) {
+    fprintf(stderr, "Failed to build command for generating executable file\n");
+    free(command);
+    return 1;
+  }
+
+  if (system(command) != 0) {
+    fprintf(stderr, "Failed to generate executable from object file\n");
+    free(command);
+    return 1;
+  }
+
+  free(command);
+  return 0;
+}
+
+bool has_suffix(const char *input, const char *suffix) {
+  assert(strlen(input) > 0);
+
+  const size_t input_len = strlen(input);
+  const size_t suffix_len = strlen(suffix);
+  if (input_len < suffix_len) {
+    return false;
+  }
+
+  for (size_t i = 0; i < suffix_len; i++) {
+    if (input[input_len - suffix_len + i] != suffix[i]) {
+      return false;
+    }
+  }
+
+  return true;
 }
