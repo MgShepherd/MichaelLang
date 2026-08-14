@@ -1,15 +1,19 @@
 #include "lexer.h"
-#include "llvm_ir.h"
+#include "llvm.h"
 #include "parser.h"
 #include "utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 
-#define EXAMPLE_FILE_NAME "examples/basic.mgs"
+#define EXAMPLE_FOLDER "examples/"
+#define BUILD_FOLDER "build/"
+#define EXAMPLE_FILE_NAME "basic"
+#define SRC_EXTENSION ".mgs"
+#define OBJ_EXTENSION ".o"
 
 int main() {
-  char *data = read_file(EXAMPLE_FILE_NAME);
+  char *data = read_file(EXAMPLE_FOLDER EXAMPLE_FILE_NAME SRC_EXTENSION);
   if (data == NULL) {
     fprintf(stderr, "Failed to read file " EXAMPLE_FILE_NAME "\n");
     return 1;
@@ -31,26 +35,16 @@ int main() {
     return 1;
   }
 
-  printf("Program has %zu statements\n", program.statement_arr.count);
-  for (size_t i = 0; i < program.statement_arr.count; i++) {
-    printf("Statement has type: %s\n", s_type_to_string(program.statement_arr.statements[i].s_type));
-    switch (program.statement_arr.statements[i].s_type) {
-    case S_DECLARATION:
-      printf("Declaration Statement: Identifier: %s, Data Type: %s, Value: %s\n",
-             program.statement_arr.statements[i].s_union.dec.identifier->item,
-             program.statement_arr.statements[i].s_union.dec.data_type->item,
-             program.statement_arr.statements[i].s_union.dec.expr->item);
-      break;
-    case S_RETURN:
-      printf("Return Statement: Value: %s\n", program.statement_arr.statements[i].s_union.ret.expr->item);
-      break;
-    default:
-      printf("Unexpected statement type %s\n", s_type_to_string(program.statement_arr.statements[i].s_type));
-    }
+  const char *obj_file = BUILD_FOLDER EXAMPLE_FILE_NAME OBJ_EXTENSION;
+  if (program_to_object_file(&program, obj_file) != 0) {
+    fprintf(stderr, "Failed to build LLVM IR from program AST\n");
+    program_free(&program);
+    token_array_free(&token_arr);
+    return 1;
   }
 
-  if (llvm_ir_from_program(&program) != 0) {
-    fprintf(stderr, "Failed to build LLVM IR from program AST\n");
+  if (obj_to_executable(obj_file, BUILD_FOLDER EXAMPLE_FILE_NAME) != 0) {
+    fprintf(stderr, "Failed to generate native executable from obj\n");
     program_free(&program);
     token_array_free(&token_arr);
     return 1;

@@ -25,4 +25,10 @@ char *read_file(const char *path);
  */
 char *string_slice(const char *input, size_t slice_start, size_t slice_end);
 
+/*
+ * Converts a provided object file into a native executable file
+ * Returns 0 on success, 1 on failure
+ */
+unsigned char obj_to_executable(const char *input_file, const char *output_file);
+
 #endif // _UTILS_H_
