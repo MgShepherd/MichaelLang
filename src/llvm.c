@@ -23,7 +23,7 @@ typedef struct {
   LLVMBuilderRef builder;
 } IRState;
 
-unsigned char build_function(const IRState *state, const FunctionStatement *func);
+unsigned char build_function(const IRState *state, const Function *func);
 LLVMTypeRef get_type(const IRState *state, const Token *token);
 
 void build_statement(const IRState *state, const Statement *statement);
@@ -42,20 +42,11 @@ unsigned char program_to_object_file(const Program *program, const char *file_na
   state.module = LLVMModuleCreateWithNameInContext(MODULE_NAME, state.context);
   state.builder = LLVMCreateBuilderInContext(state.context);
 
-  // TODO: For now we are hardcoding a main function which doesn't actually exist
-  // This should be updated to actually look for the main function in the program and insert instructions there
-  // Requires some extra parsing checks to stop top level executable instructions for now
-  const Token returnTypeToken = {.t_type = T_KEYWORD, .item = "i32"};
-  const Token identifierToken = {.t_type = T_IDENTIFIER, .item = "main"};
-  FunctionStatement func = {
-      .identifier = &identifierToken,
-      .return_type = &returnTypeToken,
-      .statement_arr = program->statement_arr,
-  };
-
-  if (build_function(&state, &func) != 0) {
-    dispose_ir_state(&state);
-    return 1;
+  for (size_t i = 0; i < program->function_arr.count; i++) {
+    if (build_function(&state, &program->function_arr.functions[i]) != 0) {
+      dispose_ir_state(&state);
+      return 1;
+    }
   }
 
   char *message;
@@ -76,7 +67,7 @@ unsigned char program_to_object_file(const Program *program, const char *file_na
   return 0;
 }
 
-unsigned char build_function(const IRState *state, const FunctionStatement *func) {
+unsigned char build_function(const IRState *state, const Function *func) {
   LLVMTypeRef return_type = get_type(state, func->return_type);
   // TODO: Will need updating when we support function parameters
   LLVMTypeRef func_type = LLVMFunctionType(return_type, NULL, 0, false);
