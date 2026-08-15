@@ -6,9 +6,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define EXAMPLE_FOLDER "examples/"
+// TODO: Replace hardcoded file with argument
+#define EXAMPLE_FOLDER "tests/00 - Basic/"
 #define BUILD_FOLDER "build/"
-#define EXAMPLE_FILE_NAME "basic"
+#define EXAMPLE_FILE_NAME "input"
 #define SRC_EXTENSION ".mgs"
 #define OBJ_EXTENSION ".o"
 

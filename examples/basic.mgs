@@ -1,7 +1,0 @@
-func example() -> i32 {
-	return 200;
-}
-
-func main() -> i32 {
-	return 12;
-}
