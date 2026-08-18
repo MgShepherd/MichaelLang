@@ -31,4 +31,16 @@ char *string_slice(const char *input, size_t slice_start, size_t slice_end);
  */
 unsigned char obj_to_executable(const char *input_file, const char *output_file);
 
+/*
+ * has_suffix will check that a provided string ends in a given series of characters
+ */
+bool has_suffix(const char *input, const char *suffix);
+
+/*
+ * Processes a file path and extracts the file name
+ * File name will be the anything after the final '/' character up to the extension marker
+ * Returned string will need to be freed when finished with
+ */
+char *file_name_from_path(const char *input);
+
 #endif // _UTILS_H_
