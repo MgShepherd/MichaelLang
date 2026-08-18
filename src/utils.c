@@ -5,8 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-bool has_suffix(const char *input, const char *suffix);
-
 char *read_file(const char *path) {
   FILE *f_ptr = fopen(path, "r");
   if (f_ptr == NULL) {
@@ -116,4 +114,19 @@ bool has_suffix(const char *input, const char *suffix) {
   }
 
   return true;
+}
+
+char *file_name_from_path(const char *input) {
+  assert(input != NULL);
+  size_t name_start = strlen(input);
+  size_t name_end = name_start;
+
+  while (name_start >= 0 && input[name_start] != '/') {
+    if (input[name_start] == '.') {
+      name_end = name_start;
+    }
+    name_start--;
+  }
+
+  return string_slice(input, name_start, name_end);
 }

@@ -27,7 +27,7 @@ func main() {
 
 		valid, err := runDirTest(dir)
 		if err != nil {
-			fmt.Printf("Error when processing directory: '%s'\n", dir.Name())
+			fmt.Printf("Error when processing directory: '%s', error: %v\n", dir.Name(), err)
 			os.Exit(1)
 		}
 
@@ -61,7 +61,8 @@ func runDirTest(dir os.DirEntry) (bool, error) {
 		return false, err
 	}
 
-	compileCommand := exec.Command("./build/Compiler")
+	fileArg := fmt.Sprintf("%s/%s/input.mgs", TEST_PATH, dir.Name())
+	compileCommand := exec.Command("./build/Compiler", fileArg)
 	if err := compileCommand.Run(); err != nil {
 		fmt.Printf("Failed to run compiler command, error: %v\n", err)
 		return false, err
