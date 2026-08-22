@@ -30,10 +30,10 @@ const char *s_type_to_string(StatementType s);
 typedef struct Statement Statement;
 
 typedef struct {
-  Statement *statements;
+  Statement *elements;
   size_t count;
   size_t capacity;
-} StatementArray;
+} Statements;
 
 // TODO: Value should eventually be replaced with an expression - for now it is just a single value
 typedef struct {
@@ -50,14 +50,14 @@ typedef struct {
 typedef struct {
   const Token *identifier;
   const Token *return_type;
-  StatementArray statement_arr;
+  Statements statements;
 } Function;
 
 typedef struct {
-  Function *functions;
+  Function *elements;
   size_t count;
   size_t capacity;
-} FunctionArray;
+} Functions;
 
 // Create the Statement "tagged union" by attached the StatementUnion with an enum value
 typedef union {
@@ -71,16 +71,16 @@ struct Statement {
 };
 
 typedef struct {
-  FunctionArray function_arr;
+  Functions functions;
 } Program;
 
 /*
- * parse_tokens will convert the filled token_arr into a Program Syntax Tree
+ * parse_tokens will convert the filled tokens into a Program Syntax Tree
  * Will output result into the program arguement - will overwrite any existing data
  * Allocates program on the heap so will need to be freed - use program_free for this
- * Note: Created program stores pointers to tokens, so token_arr should not be freed until program can also be freed
+ * Note: Created program stores pointers to tokens, so tokens should not be freed until program can also be freed
  */
-unsigned char parse_tokens(Program *program, const TokenArray *token_arr);
+unsigned char parse_tokens(Program *program, const Tokens *tokens);
 
 /*
  * Frees the memory associated with a program

@@ -1,4 +1,5 @@
 #include "lexer.h"
+#include "dynamic_array.h"
 #include "utils.h"
 
 #include <assert.h>
@@ -9,9 +10,8 @@
 #include <string.h>
 
 #define TOKEN_ARRAY_LEN_FACTOR 0.6
-#define TOKEN_ARRAY_REALLOC_FACTOR 2
 
-unsigned char insert_token(TokenArray *token_arr, const char *input, size_t token_start, size_t token_end);
+unsigned char insert_token(Tokens *tokens, const char *input, size_t token_start, size_t token_end);
 TokenType get_token_type(const char *token);
 bool is_separator_token(char current);
 bool is_valid_identifier(const char *token);
@@ -44,103 +44,76 @@ static const TokenMapping mappings[] = {
 
 static const size_t NUM_TOKEN_MAPPINGS = (sizeof(mappings) / sizeof(mappings[0]));
 
-unsigned char lexer_process_tokens(TokenArray *token_arr, const char *data) {
+unsigned char lexer_process_tokens(Tokens *tokens, const char *data) {
   assert(data != NULL);
 
-  token_arr->tokens = NULL;
+  tokens->elements = NULL;
   const size_t data_len = strlen(data);
   // If file is empty, valid program but no further processing is needed
   if (data_len == 0) {
     return 0;
   }
 
-  token_arr->capacity = data_len * TOKEN_ARRAY_LEN_FACTOR;
+  size_t capacity = data_len * TOKEN_ARRAY_LEN_FACTOR;
   // Guard against getting 0 capacity when token input size is very small
-  if (token_arr->capacity == 0) {
-    token_arr->capacity = 1;
+  if (capacity == 0) {
+    capacity = 1;
   }
 
-  token_arr->count = 0;
-  token_arr->tokens = malloc(token_arr->capacity * sizeof(Token));
-
-  if (token_arr->tokens == NULL) {
-    fprintf(stderr, "Failed to allocate required space for tokens array\n");
-    return 1;
-  }
+  dyn_array_init(tokens, sizeof(Token), capacity);
 
   size_t token_start = 0;
   for (size_t i = 0; i < data_len; i++) {
     const bool is_separator = is_separator_token(data[i]);
 
     if (isspace(data[i]) > 0 || is_separator) {
-      if (insert_token(token_arr, data, token_start, i) != 0) {
+      if (insert_token(tokens, data, token_start, i) != 0) {
         fprintf(stderr, "Failed to insert token into tokens array\n");
-        token_array_free(token_arr);
+        dyn_array_free(tokens);
         return 1;
       }
       token_start = i + 1;
     }
 
     // If the current char is a separator, insert another token for the separator itself
-    if (is_separator && insert_token(token_arr, data, i, i + 1) != 0) {
+    if (is_separator && insert_token(tokens, data, i, i + 1) != 0) {
       fprintf(stderr, "Failed to insert token into tokens array\n");
-      token_array_free(token_arr);
+      dyn_array_free(tokens);
       return 1;
     }
   }
 
-  if (token_start < data_len && insert_token(token_arr, data, token_start, data_len) != 0) {
+  if (token_start < data_len && insert_token(tokens, data, token_start, data_len) != 0) {
     fprintf(stderr, "Failed to insert token into tokens array\n");
-    token_array_free(token_arr);
+    dyn_array_free(tokens);
     return 1;
   }
 
   return 0;
 }
 
-void token_array_free(TokenArray *token_arr) {
-  if (token_arr != NULL && token_arr->tokens != NULL) {
-    for (size_t i = 0; i < token_arr->count; i++) {
-      free(token_arr->tokens[i].item);
-    }
-    free(token_arr->tokens);
-  }
-
-  token_arr->tokens = NULL;
-  token_arr->count = 0;
-  token_arr->capacity = 0;
-}
-
-unsigned char insert_token(TokenArray *token_arr, const char *input, size_t token_start, size_t token_end) {
-  assert(token_arr->tokens != NULL);
+unsigned char insert_token(Tokens *tokens, const char *input, size_t token_start, size_t token_end) {
+  assert(tokens->elements != NULL);
   // If the token is empty, don't insert it but continue with the program
   if (token_end == 0 || token_start >= token_end) {
     return 0;
   }
 
-  if (token_arr->count >= token_arr->capacity) {
-    token_arr->capacity = token_arr->capacity * TOKEN_ARRAY_REALLOC_FACTOR;
-    Token *new_tokens = realloc(token_arr->tokens, token_arr->capacity * sizeof(Token));
-    if (new_tokens == NULL) {
-      fprintf(stderr, "Failed to allocate additional required space for tokens array\n");
-      return 1;
-    }
-    token_arr->tokens = new_tokens;
-  }
-
-  token_arr->tokens[token_arr->count].item = string_slice(input, token_start, token_end);
-  if (token_arr->tokens[token_arr->count].item == NULL) {
+  char *item = string_slice(input, token_start, token_end);
+  if (item == NULL) {
     fprintf(stderr, "Failed to create token string for token starting at position %zu, ending at %zu\n", token_start,
             token_end);
     return 1;
   }
-  token_arr->tokens[token_arr->count].t_type = get_token_type(token_arr->tokens[token_arr->count].item);
-  if (token_arr->tokens[token_arr->count].t_type == T_NONE) {
-    fprintf(stderr, "Failed to process token type for token: %s\n", token_arr->tokens[token_arr->count].item);
-    free(token_arr->tokens[token_arr->count].item);
+  TokenType t_type = get_token_type(item);
+  if (t_type == T_NONE) {
+    fprintf(stderr, "Failed to process token type for token: %s\n", item);
+    free(item);
     return 1;
   }
-  token_arr->count++;
+
+  Token new_token = {.item = item, .t_type = t_type};
+  dyn_array_insert(tokens, new_token);
 
   return 0;
 }

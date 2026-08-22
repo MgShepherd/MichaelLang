@@ -1,4 +1,5 @@
 #include "llvm.h"
+#include "dynamic_array.h"
 #include "lexer.h"
 #include "parser.h"
 #include "llvm-c/Types.h"
@@ -27,16 +28,16 @@ typedef struct {
 // TODO: Aware that using a dynamic array for storing variables is not ideal and hashmap should be used, but for not
 // that is not implemented
 typedef struct {
-  Variable *variables;
+  Variable *elements;
   size_t count;
   size_t capacity;
-} VariableArray;
+} Variables;
 
 typedef struct {
   LLVMContextRef context;
   LLVMModuleRef module;
   LLVMBuilderRef builder;
-  VariableArray variable_arr;
+  Variables variables;
 } IRState;
 
 unsigned char init_ir_state(IRState *state);
@@ -50,11 +51,10 @@ unsigned char build_declaration_statement(IRState *state, const DeclarationState
 
 unsigned char generate_object_file(const IRState *state, const char *file_name);
 
-void dispose_ir_state(const IRState *state);
+void dispose_ir_state(IRState *state);
 
 // Returns NULL in case of variable being undefined
-LLVMValueRef *load_variable(const VariableArray *variable_arr, const char *identifier);
-unsigned char insert_variable(VariableArray *variable_arr, Variable *variable);
+LLVMValueRef *load_variable(const Variables *variables, const char *identifier);
 
 unsigned char program_to_object_file(const Program *program, const char *file_name) {
   assert(program != NULL);
@@ -65,8 +65,8 @@ unsigned char program_to_object_file(const Program *program, const char *file_na
     return 1;
   }
 
-  for (size_t i = 0; i < program->function_arr.count; i++) {
-    if (build_function(&state, &program->function_arr.functions[i]) != 0) {
+  for (size_t i = 0; i < program->functions.count; i++) {
+    if (build_function(&state, &program->functions.elements[i]) != 0) {
       dispose_ir_state(&state);
       return 1;
     }
@@ -91,14 +91,7 @@ unsigned char program_to_object_file(const Program *program, const char *file_na
 }
 
 unsigned char init_ir_state(IRState *state) {
-  Variable *variables = malloc(VARIBLE_LEN_ESTIMATE * sizeof(Variable));
-  if (variables == NULL) {
-    fprintf(stderr, "Failed to allocate enough memory for storing variable map\n");
-    return 1;
-  }
-  state->variable_arr.variables = variables;
-  state->variable_arr.count = 0;
-  state->variable_arr.capacity = VARIBLE_LEN_ESTIMATE;
+  dyn_array_init(&state->variables, sizeof(Variable), VARIBLE_LEN_ESTIMATE);
 
   // TODO: This creation logic will need updating when supporting multiple source files
   state->context = LLVMContextCreate();
@@ -117,8 +110,8 @@ unsigned char build_function(IRState *state, const Function *func) {
   LLVMBasicBlockRef block = LLVMAppendBasicBlockInContext(state->context, llvm_func, func->identifier->item);
   LLVMPositionBuilderAtEnd(state->builder, block);
 
-  for (size_t i = 0; i < func->statement_arr.count; i++) {
-    if (build_statement(state, &func->statement_arr.statements[i]) != 0) {
+  for (size_t i = 0; i < func->statements.count; i++) {
+    if (build_statement(state, &func->statements.elements[i]) != 0) {
       fprintf(stderr, "Failed to build statement\n");
       return 1;
     }
@@ -189,7 +182,7 @@ unsigned char build_return_statement(const IRState *state, const ReturnStatement
     break;
   case T_IDENTIFIER:
     const LLVMTypeRef var_type = LLVMInt32TypeInContext(state->context);
-    const LLVMValueRef *var_ptr = load_variable(&state->variable_arr, ret->expr->item);
+    const LLVMValueRef *var_ptr = load_variable(&state->variables, ret->expr->item);
     if (var_ptr == NULL) {
       fprintf(stderr, "Undefined variable: %s\n", ret->expr->item);
       return 1;
@@ -224,10 +217,7 @@ unsigned char build_declaration_statement(IRState *state, const DeclarationState
   LLVMBuildStore(state->builder, dec_val, var_ptr);
 
   Variable var = {.name = dec->identifier->item, .ptr = var_ptr};
-  if (insert_variable(&state->variable_arr, &var) != 0) {
-    fprintf(stderr, "Failed to insert variable %s into variable array\n", dec->identifier->item);
-    return 1;
-  }
+  dyn_array_insert(&state->variables, var);
 
   return 0;
 }
@@ -266,40 +256,20 @@ unsigned char generate_object_file(const IRState *state, const char *file_name) 
   return status;
 }
 
-void dispose_ir_state(const IRState *state) {
-  if (state->variable_arr.variables != NULL) {
-    free(state->variable_arr.variables);
-  }
+void dispose_ir_state(IRState *state) {
+  dyn_array_free(&state->variables);
 
   LLVMDisposeBuilder(state->builder);
   LLVMDisposeModule(state->module);
   LLVMContextDispose(state->context);
 }
 
-LLVMValueRef *load_variable(const VariableArray *variable_arr, const char *identifier) {
-  for (size_t i = 0; i < variable_arr->count; i++) {
-    if (strcmp(variable_arr->variables[i].name, identifier) == 0) {
-      return &variable_arr->variables[i].ptr;
+LLVMValueRef *load_variable(const Variables *variables, const char *identifier) {
+  for (size_t i = 0; i < variables->count; i++) {
+    if (strcmp(variables->elements[i].name, identifier) == 0) {
+      return &variables->elements[i].ptr;
     }
   }
 
   return NULL;
-}
-
-unsigned char insert_variable(VariableArray *variable_arr, Variable *variable) {
-  assert(variable_arr->variables != NULL);
-
-  if (variable_arr->count >= variable_arr->capacity) {
-    variable_arr->capacity = variable_arr->capacity * ARRAY_REALLOC_FACTOR;
-    Variable *new_variables = realloc(variable_arr->variables, variable_arr->capacity * sizeof(Variable));
-    if (new_variables == NULL) {
-      fprintf(stderr, "Failed to allocate additional required space for variables array\n");
-      return 1;
-    }
-    variable_arr->variables = new_variables;
-  }
-
-  variable_arr->variables[variable_arr->count++] = *variable;
-
-  return 0;
 }
