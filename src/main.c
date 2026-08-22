@@ -1,4 +1,5 @@
 #include "cmd_args.h"
+#include "dynamic_array.h"
 #include "lexer.h"
 #include "llvm.h"
 #include "parser.h"
@@ -14,7 +15,7 @@
 int main(int argc, char **argv) {
   int response_code = 0;
   char *data = NULL;
-  TokenArray token_arr;
+  Tokens tokens;
   Program program;
   char *file_name = NULL;
   char *obj_file_path = NULL;
@@ -39,13 +40,13 @@ int main(int argc, char **argv) {
     goto cleanup;
   }
 
-  if (lexer_process_tokens(&token_arr, data) != 0) {
+  if (lexer_process_tokens(&tokens, data) != 0) {
     fprintf(stderr, "Failed to convert file input into tokens\n");
     response_code = 1;
     goto cleanup;
   }
 
-  if (parse_tokens(&program, &token_arr) != 0) {
+  if (parse_tokens(&program, &tokens) != 0) {
     fprintf(stderr, "Failed to convert processed tokens into a program\n");
     response_code = 1;
     goto cleanup;
@@ -107,7 +108,7 @@ cleanup:
   if (file_name != NULL)
     free(file_name);
   program_free(&program);
-  token_array_free(&token_arr);
+  dyn_array_free(&tokens);
   if (data != NULL)
     free(data);
 
