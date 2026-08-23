@@ -11,7 +11,8 @@
 // FunctionStatement := 'func' T_IDENTIFIER '(' ')' '->' DataType '{' [Statement] '}'
 // DeclarationStatement := T_IDENTIFIER ':' DataType '=' Expression ';'
 // ReturnStatement := 'return' Expression ';'
-// Expression := T_IDENTIFIER | T_NUMERIC_LITERAL
+// Expression := TerminalExpr
+// TerminalExpr := T_IDENTIFIER | T_NUMERIC_LITERAL
 //
 // DataType := 'i32'
 
@@ -21,11 +22,30 @@
   X(S_FUNCTION)                                                                                                        \
   X(S_RETURN)
 
+#define EXPRESSION_TYPES                                                                                               \
+  X(E_NONE)                                                                                                            \
+  X(E_TERM)
+
 #define X(N) N,
 typedef enum { STATEMENT_TYPES } StatementType;
+typedef enum { EXPRESSION_TYPES } ExpressionType;
 #undef X
 
 const char *s_type_to_string(StatementType s);
+const char *e_type_to_string(ExpressionType e);
+
+typedef struct {
+  const Token *tok;
+} TerminalExpr;
+
+typedef union {
+  TerminalExpr terminal;
+} ExpressionUnion;
+
+typedef struct {
+  ExpressionUnion e_union;
+  ExpressionType e_type;
+} Expression;
 
 typedef struct Statement Statement;
 
@@ -35,15 +55,14 @@ typedef struct {
   size_t capacity;
 } Statements;
 
-// TODO: Value should eventually be replaced with an expression - for now it is just a single value
 typedef struct {
   const Token *identifier;
   const Token *data_type;
-  const Token *expr;
+  Expression expr;
 } DeclarationStatement;
 
 typedef struct {
-  const Token *expr;
+  Expression expr;
 } ReturnStatement;
 
 // TODO: Functions eventually need to take parameters - for now always empty
