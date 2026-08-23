@@ -134,6 +134,8 @@ TokenType get_token_type(const char *token) {
     return T_SEMI;
   case ':':
     return T_COLON;
+  case '+':
+    return T_ARITHMETIC;
   }
 
   for (size_t i = 0; i < NUM_TOKEN_MAPPINGS; i++) {

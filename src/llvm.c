@@ -57,6 +57,7 @@ unsigned char build_declaration_statement(IRState *state, const DeclarationState
  */
 LLVMValueRef build_expression(const IRState *state, const Expression *expr);
 LLVMValueRef build_terminal_expr(const IRState *state, const TerminalExpr *term);
+LLVMValueRef build_arithmetic_expr(const IRState *state, const ArithmeticExpr *arith);
 
 unsigned char generate_object_file(const IRState *state, const char *file_name);
 
@@ -205,6 +206,8 @@ LLVMValueRef build_expression(const IRState *state, const Expression *expr) {
   switch (expr->e_type) {
   case E_TERM:
     return build_terminal_expr(state, &expr->e_union.terminal);
+  case E_ARITHMETIC:
+    return build_arithmetic_expr(state, &expr->e_union.arithmetic);
   default:
     fprintf(stderr, "Unexpected expression type: %s\n", e_type_to_string(expr->e_type));
     return NULL;
@@ -241,6 +244,27 @@ LLVMValueRef build_terminal_expr(const IRState *state, const TerminalExpr *term)
     return LLVMBuildLoad2(state->builder, var_type, *var_ptr, term->tok->item);
   default:
     fprintf(stderr, "Unexpected token type for expression: %s\n", t_type_to_string(term->tok->t_type));
+    return NULL;
+  }
+}
+
+LLVMValueRef build_arithmetic_expr(const IRState *state, const ArithmeticExpr *arith) {
+  assert(arith != NULL && arith->op->t_type == T_ARITHMETIC);
+
+  LLVMValueRef lhs = build_terminal_expr(state, &arith->lhs);
+  if (lhs == NULL) {
+    return NULL;
+  }
+  LLVMValueRef rhs = build_expression(state, arith->rhs);
+  if (rhs == NULL) {
+    return NULL;
+  }
+
+  switch (arith->op->item[0]) {
+  case '+':
+    return LLVMBuildAdd(state->builder, lhs, rhs, arith->lhs.tok->item);
+  default:
+    fprintf(stderr, "Unexpected arithmetic operator: %s\n", arith->op->item);
     return NULL;
   }
 }

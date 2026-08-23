@@ -1,5 +1,5 @@
 func main() -> i32 {
 	x: i32 = 71;
-	y: i32 = x;
+	y: i32 = x + 29 + x;
 	return y;
 }
