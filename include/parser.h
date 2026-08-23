@@ -11,19 +11,21 @@
 // FunctionStatement := 'func' T_IDENTIFIER '(' ')' '->' DataType '{' [Statement] '}'
 // DeclarationStatement := T_IDENTIFIER ':' DataType '=' Expression ';'
 // ReturnStatement := 'return' Expression ';'
-// Expression := TerminalExpr
+// Expression := TerminalExpr | ArithmeticExpr
 // TerminalExpr := T_IDENTIFIER | T_NUMERIC_LITERAL
+// ArithmeticExpr := TerminalExpr ArithmeticOp Expression
 //
 // DataType := 'i32'
+// ArithmeticOp := '+'
 
 #define STATEMENT_TYPES                                                                                                \
   X(S_NONE)                                                                                                            \
   X(S_DECLARATION)                                                                                                     \
-  X(S_FUNCTION)                                                                                                        \
   X(S_RETURN)
 
 #define EXPRESSION_TYPES                                                                                               \
   X(E_NONE)                                                                                                            \
+  X(E_ARITHMETIC)                                                                                                      \
   X(E_TERM)
 
 #define X(N) N,
@@ -34,18 +36,27 @@ typedef enum { EXPRESSION_TYPES } ExpressionType;
 const char *s_type_to_string(StatementType s);
 const char *e_type_to_string(ExpressionType e);
 
+typedef struct Expression Expression;
+
 typedef struct {
   const Token *tok;
 } TerminalExpr;
 
+typedef struct {
+  TerminalExpr lhs;
+  const Token *op;
+  Expression *rhs;
+} ArithmeticExpr;
+
 typedef union {
   TerminalExpr terminal;
+  ArithmeticExpr arithmetic;
 } ExpressionUnion;
 
-typedef struct {
+struct Expression {
   ExpressionUnion e_union;
   ExpressionType e_type;
-} Expression;
+};
 
 typedef struct Statement Statement;
 

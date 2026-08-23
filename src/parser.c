@@ -70,6 +70,16 @@ Expression parse_expression(const Tokens *tokens, size_t *idx);
  */
 void functions_free(Functions *functions);
 
+/*
+ * Frees a single statement including all nested expressions
+ */
+void statement_free(Statement *statement);
+
+/*
+ * Frees a single expression
+ */
+void expression_free(Expression *expression);
+
 #define X(N)                                                                                                           \
   case N:                                                                                                              \
     return #N;
@@ -176,9 +186,35 @@ void program_free(Program *program) {
 
 void functions_free(Functions *functions) {
   for (size_t i = 0; i < functions->count; i++) {
+    for (size_t j = 0; j < functions->elements[i].statements.count; j++) {
+      statement_free(&functions->elements[i].statements.elements[j]);
+    }
     dyn_array_free(&functions->elements[i].statements);
   }
   dyn_array_free(functions);
+}
+
+void statement_free(Statement *statement) {
+  switch (statement->s_type) {
+  case S_DECLARATION:
+    expression_free(&statement->s_union.dec.expr);
+    break;
+  case S_RETURN:
+    expression_free(&statement->s_union.ret.expr);
+    break;
+  default:
+    break;
+  }
+}
+
+void expression_free(Expression *expression) {
+  switch (expression->e_type) {
+  case E_ARITHMETIC:
+    expression_free(expression->e_union.arithmetic.rhs);
+    free(expression->e_union.arithmetic.rhs);
+  default:
+    break;
+  }
 }
 
 Statement parse_dec_statement(const Tokens *tokens, size_t *idx) {
@@ -336,16 +372,36 @@ Expression parse_expression(const Tokens *tokens, size_t *idx) {
     return expr;
   }
 
-  const Token *next = &tokens->elements[*idx];
+  const Token *next = &tokens->elements[(*idx)++];
   if (next->t_type != T_IDENTIFIER && next->t_type != T_NUMERIC_LIT) {
     fprintf(stderr, "Expected next token to be literal or identifier, got %s\n", t_type_to_string(next->t_type));
     return expr;
   }
 
-  expr.e_type = E_TERM;
   TerminalExpr term = {.tok = next};
-  expr.e_union.terminal = term;
+  if (*idx >= tokens->count || tokens->elements[*idx].t_type != T_ARITHMETIC) {
+    expr.e_type = E_TERM;
+    expr.e_union.terminal = term;
+    return expr;
+  }
 
-  *idx += 1;
+  const Token *op = &tokens->elements[(*idx)++];
+  Expression rhs = parse_expression(tokens, idx);
+
+  Expression *rhs_ptr = malloc(sizeof(Expression));
+  if (rhs_ptr == NULL) {
+    fprintf(stderr, "Failed to allocate memory for Right hand side of expression\n");
+    return expr;
+  }
+  *rhs_ptr = rhs;
+
+  ArithmeticExpr arith = {
+      .lhs = term,
+      .op = op,
+      .rhs = rhs_ptr,
+  };
+
+  expr.e_type = E_ARITHMETIC;
+  expr.e_union.arithmetic = arith;
   return expr;
 }
