@@ -49,6 +49,15 @@ unsigned char build_statement(IRState *state, const Statement *statement);
 unsigned char build_return_statement(const IRState *state, const ReturnStatement *ret);
 unsigned char build_declaration_statement(IRState *state, const DeclarationStatement *dec);
 
+/*
+ * build_expression will build the required statements in order to get a single output
+ * value which can be used in statements
+ * Will produce output value as return value
+ * Output value ref will be NULL on error
+ */
+LLVMValueRef build_expression(const IRState *state, const Expression *expr);
+LLVMValueRef build_terminal_expr(const IRState *state, const TerminalExpr *term);
+
 unsigned char generate_object_file(const IRState *state, const char *file_name);
 
 void dispose_ir_state(IRState *state);
@@ -160,41 +169,15 @@ unsigned char build_statement(IRState *state, const Statement *statement) {
   return 0;
 }
 
-// TODO: Add support for identifiers as the return value
 unsigned char build_return_statement(const IRState *state, const ReturnStatement *ret) {
   assert(ret != NULL);
 
-  // TODO: Currently we only support integers as numeric literals, we should support floats etc in future
-  switch (ret->expr->t_type) {
-  case T_NUMERIC_LIT:
-    // TODO: Need to work out the return statement type by pulling from the function definition
-    LLVMTypeRef return_type = LLVMInt32TypeInContext(state->context);
-
-    long long int_val = strtoll(ret->expr->item, NULL, INT_BASE);
-    if (int_val == LONG_MIN || int_val == LONG_MAX) {
-      fprintf(stderr, "Failed to convert return value into integer: %s\n", ret->expr->item);
-      return 1;
-    }
-
-    // TODO: Check what happens for negative return values, as think this may have an issue
-    LLVMValueRef ret_val = LLVMConstInt(return_type, int_val, false);
-    LLVMBuildRet(state->builder, ret_val);
-    break;
-  case T_IDENTIFIER:
-    const LLVMTypeRef var_type = LLVMInt32TypeInContext(state->context);
-    const LLVMValueRef *var_ptr = load_variable(&state->variables, ret->expr->item);
-    if (var_ptr == NULL) {
-      fprintf(stderr, "Undefined variable: %s\n", ret->expr->item);
-      return 1;
-    }
-
-    LLVMValueRef ret_var = LLVMBuildLoad2(state->builder, var_type, *var_ptr, ret->expr->item);
-    LLVMBuildRet(state->builder, ret_var);
-    break;
-  default:
-    fprintf(stderr, "Unexpected expression type for return statement: %s\n", t_type_to_string(ret->expr->t_type));
+  LLVMValueRef expr_output = build_expression(state, &ret->expr);
+  if (expr_output == NULL) {
+    fprintf(stderr, "Failed to build expression for return statement\n");
     return 1;
   }
+  LLVMBuildRet(state->builder, expr_output);
   return 0;
 }
 
@@ -205,21 +188,61 @@ unsigned char build_declaration_statement(IRState *state, const DeclarationState
   LLVMTypeRef var_type = LLVMInt32TypeInContext(state->context);
   LLVMValueRef var_ptr = LLVMBuildAlloca(state->builder, var_type, dec->identifier->item);
 
-  long long int_val = strtoll(dec->expr->item, NULL, INT_BASE);
-  if (int_val == LONG_MIN || int_val == LONG_MAX) {
-    fprintf(stderr, "Failed to convert declaration value into integer: %s\n", dec->expr->item);
+  LLVMValueRef expr_output = build_expression(state, &dec->expr);
+  if (expr_output == NULL) {
+    fprintf(stderr, "Failed to build expression for declaration statement\n");
     return 1;
   }
-
-  // TODO: Currently only supporting declaration statements with single constant values - should properly support
-  // expressions
-  LLVMValueRef dec_val = LLVMConstInt(var_type, int_val, false);
-  LLVMBuildStore(state->builder, dec_val, var_ptr);
+  LLVMBuildStore(state->builder, expr_output, var_ptr);
 
   Variable var = {.name = dec->identifier->item, .ptr = var_ptr};
   dyn_array_insert(&state->variables, var);
 
   return 0;
+}
+
+LLVMValueRef build_expression(const IRState *state, const Expression *expr) {
+  switch (expr->e_type) {
+  case E_TERM:
+    return build_terminal_expr(state, &expr->e_union.terminal);
+  default:
+    fprintf(stderr, "Unexpected expression type: %s\n", e_type_to_string(expr->e_type));
+    return NULL;
+  }
+}
+
+LLVMValueRef build_terminal_expr(const IRState *state, const TerminalExpr *term) {
+  assert(term != NULL);
+
+  // TODO: Currently we only support integers as numeric literals, we should support floats etc in future
+  switch (term->tok->t_type) {
+  case T_NUMERIC_LIT:
+    // TODO: Need to work out the literal type dynamically, rather than hardcoding to int
+    LLVMTypeRef lit_type = LLVMInt32TypeInContext(state->context);
+
+    // TODO: Need to handle the case of 0 being returned from strtoll with errno set - this happens for invalid
+    // conversion
+    long long int_val = strtoll(term->tok->item, NULL, INT_BASE);
+    if (int_val == LLONG_MIN || int_val == LLONG_MAX) {
+      fprintf(stderr, "Failed to convert return value into integer: %s\n", term->tok->item);
+      return NULL;
+    }
+
+    // TODO: Check what happens for negative return values, as think this may have an issue
+    return LLVMConstInt(lit_type, int_val, false);
+  case T_IDENTIFIER:
+    const LLVMTypeRef var_type = LLVMInt32TypeInContext(state->context);
+    const LLVMValueRef *var_ptr = load_variable(&state->variables, term->tok->item);
+    if (var_ptr == NULL) {
+      fprintf(stderr, "Undefined variable: %s\n", term->tok->item);
+      return NULL;
+    }
+
+    return LLVMBuildLoad2(state->builder, var_type, *var_ptr, term->tok->item);
+  default:
+    fprintf(stderr, "Unexpected token type for expression: %s\n", t_type_to_string(term->tok->t_type));
+    return NULL;
+  }
 }
 
 unsigned char generate_object_file(const IRState *state, const char *file_name) {

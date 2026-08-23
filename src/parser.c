@@ -58,12 +58,12 @@ Statement parse_ret_statement(const Tokens *tokens, size_t *idx);
 const Token *expect_next(TokenType expected, const Tokens *tokens, size_t *idx);
 
 /*
- * parse_expression will check whether the next elements can be used as expression
+ * parse_expression will attempt to convert the next tokens into an expression
  * Currently, this is either a T_IDENTIFIER or T_NUMERIC_LIT but may be expanded in future
  * Will update the idx pointer to point at the next token when valid
- * Will return NULL if no next token exists or the token type does not match
+ * Will return the e_type E_NONE if no next token exists or not a valid expression
  */
-const Token *parse_expression(const Tokens *tokens, size_t *idx);
+Expression parse_expression(const Tokens *tokens, size_t *idx);
 
 /*
  * Frees functions array as well as nested statement arrays
@@ -77,6 +77,14 @@ void functions_free(Functions *functions);
 const char *s_type_to_string(StatementType s) {
   switch (s) {
     STATEMENT_TYPES
+  default:
+    return "unknown";
+  }
+}
+
+const char *e_type_to_string(ExpressionType e) {
+  switch (e) {
+    EXPRESSION_TYPES
   default:
     return "unknown";
   }
@@ -202,8 +210,8 @@ Statement parse_dec_statement(const Tokens *tokens, size_t *idx) {
   }
 
   dec.expr = parse_expression(tokens, idx);
-  if (dec.expr == NULL) {
-    fprintf(stderr, "Failed to get value token\n");
+  if (dec.expr.e_type == E_NONE) {
+    fprintf(stderr, "Failed to parse expression for declaration statement\n");
     return statement;
   }
 
@@ -229,8 +237,8 @@ Statement parse_ret_statement(const Tokens *tokens, size_t *idx) {
   }
 
   ret.expr = parse_expression(tokens, idx);
-  if (ret.expr == NULL) {
-    fprintf(stderr, "Failed to get value token\n");
+  if (ret.expr.e_type == E_NONE) {
+    fprintf(stderr, "Failed to parse expression for return statement\n");
     return statement;
   }
 
@@ -319,18 +327,25 @@ const Token *expect_next(TokenType expected, const Tokens *tokens, size_t *idx) 
   return next;
 }
 
-const Token *parse_expression(const Tokens *tokens, size_t *idx) {
+Expression parse_expression(const Tokens *tokens, size_t *idx) {
+  Expression expr;
+  expr.e_type = E_NONE;
+
   if (*idx >= tokens->count) {
     fprintf(stderr, "Attempted to get value token but reached end of input\n");
-    return NULL;
+    return expr;
   }
 
   const Token *next = &tokens->elements[*idx];
   if (next->t_type != T_IDENTIFIER && next->t_type != T_NUMERIC_LIT) {
     fprintf(stderr, "Expected next token to be literal or identifier, got %s\n", t_type_to_string(next->t_type));
-    return NULL;
+    return expr;
   }
 
+  expr.e_type = E_TERM;
+  TerminalExpr term = {.tok = next};
+  expr.e_union.terminal = term;
+
   *idx += 1;
-  return next;
+  return expr;
 }
