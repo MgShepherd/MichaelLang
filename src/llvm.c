@@ -23,37 +23,36 @@
 typedef struct {
   char *name;
   LLVMValueRef ptr;
-} Variable;
+} ValueRef;
 
-// TODO: Aware that using a dynamic array for storing variables is not ideal and hashmap should be used, but for not
-// that is not implemented
 typedef struct {
-  Variable *elements;
+  ValueRef *elements;
   size_t count;
   size_t capacity;
-} Variables;
+} ValueRefs;
 
 typedef struct {
   LLVMContextRef context;
   LLVMModuleRef module;
   LLVMBuilderRef builder;
-  Variables variables;
+  ValueRefs values;
 } IRState;
 
 unsigned char init_ir_state(IRState *state);
 
 unsigned char build_function(IRState *state, const Function *func);
-LLVMTypeRef get_type(const IRState *state, const Token *token);
+LLVMTypeRef get_type(const IRState *state, DataType d_type);
 
 unsigned char build_statement(IRState *state, const Statement *statement);
-unsigned char build_return_statement(const IRState *state, const ReturnStatement *ret);
+// Declaration statement can only error due to failing to add ValueRef into array
 unsigned char build_declaration_statement(IRState *state, const DeclarationStatement *dec);
+void build_return_statement(const IRState *state, const ReturnStatement *ret);
 
 /*
  * build_expression will build the required statements in order to get a single output
  * value which can be used in statements
  * Will produce output value as return value
- * Output value ref will be NULL on error
+ * Functions should never error assuming that all parser checks worked successfully
  */
 LLVMValueRef build_expression(const IRState *state, const Expression *expr);
 LLVMValueRef build_terminal_expr(const IRState *state, const TerminalExpr *term);
@@ -63,8 +62,7 @@ unsigned char generate_object_file(const IRState *state, const char *file_name);
 
 void dispose_ir_state(IRState *state);
 
-// Returns NULL in case of variable being undefined
-LLVMValueRef *load_variable(const Variables *variables, const char *identifier);
+LLVMValueRef load_variable(const ValueRefs *values, const char *identifier);
 
 unsigned char program_to_object_file(const Program *program, const char *file_name) {
   assert(program != NULL);
@@ -101,7 +99,7 @@ unsigned char program_to_object_file(const Program *program, const char *file_na
 }
 
 unsigned char init_ir_state(IRState *state) {
-  dyn_array_init(&state->variables, sizeof(Variable), VARIBLE_LEN_ESTIMATE);
+  dyn_array_init(&state->values, sizeof(ValueRef), VARIBLE_LEN_ESTIMATE);
 
   // TODO: This creation logic will need updating when supporting multiple source files
   state->context = LLVMContextCreate();
@@ -135,15 +133,13 @@ unsigned char build_function(IRState *state, const Function *func) {
 }
 
 // TODO: Question: We are calling get_type a lot which may be inefficient, can we maybe use some kind of type map
-LLVMTypeRef get_type(const IRState *state, const Token *token) {
-  assert(state != NULL && token != NULL && token->t_type == T_KEYWORD);
+LLVMTypeRef get_type(const IRState *state, DataType d_type) {
+  assert(state != NULL);
 
-  if (strcmp(token->item, "i32") == 0) {
+  if (d_type == D_I32) {
     return LLVMInt32TypeInContext(state->context);
   }
 
-  fprintf(stderr, "Attempted to get LLVM type from token that is not valid type: %s, this should be unreachable\n",
-          token->item);
   unreachable();
 }
 
@@ -151,35 +147,26 @@ unsigned char build_statement(IRState *state, const Statement *statement) {
   assert(state != NULL && statement != NULL);
   switch (statement->s_type) {
   case S_RETURN:
-    if (build_return_statement(state, &statement->s_union.ret) != 0) {
-      fprintf(stderr, "Failed to build return statement\n");
-      return 1;
-    }
+    build_return_statement(state, &statement->s_union.ret);
     break;
   case S_DECLARATION:
     if (build_declaration_statement(state, &statement->s_union.dec) != 0) {
-      fprintf(stderr, "Failed to build declaration statement\n");
       return 1;
     }
     break;
   default:
-    fprintf(stderr, "Unimplemented statement type in ir: %s\n", s_type_to_string(statement->s_type));
-    return 1;
+    unreachable();
   }
 
   return 0;
 }
 
-unsigned char build_return_statement(const IRState *state, const ReturnStatement *ret) {
+void build_return_statement(const IRState *state, const ReturnStatement *ret) {
   assert(ret != NULL);
 
   LLVMValueRef expr_output = build_expression(state, &ret->expr);
-  if (expr_output == NULL) {
-    fprintf(stderr, "Failed to build expression for return statement\n");
-    return 1;
-  }
+  assert(expr_output != NULL);
   LLVMBuildRet(state->builder, expr_output);
-  return 0;
 }
 
 unsigned char build_declaration_statement(IRState *state, const DeclarationStatement *dec) {
@@ -190,14 +177,11 @@ unsigned char build_declaration_statement(IRState *state, const DeclarationState
   LLVMValueRef var_ptr = LLVMBuildAlloca(state->builder, var_type, dec->identifier->item);
 
   LLVMValueRef expr_output = build_expression(state, &dec->expr);
-  if (expr_output == NULL) {
-    fprintf(stderr, "Failed to build expression for declaration statement\n");
-    return 1;
-  }
+  assert(expr_output != NULL);
   LLVMBuildStore(state->builder, expr_output, var_ptr);
 
-  Variable var = {.name = dec->identifier->item, .ptr = var_ptr};
-  dyn_array_insert(&state->variables, var);
+  ValueRef var = {.name = dec->identifier->item, .ptr = var_ptr};
+  dyn_array_insert(&state->values, var);
 
   return 0;
 }
@@ -209,8 +193,7 @@ LLVMValueRef build_expression(const IRState *state, const Expression *expr) {
   case E_ARITHMETIC:
     return build_arithmetic_expr(state, &expr->e_union.arithmetic);
   default:
-    fprintf(stderr, "Unexpected expression type: %s\n", e_type_to_string(expr->e_type));
-    return NULL;
+    unreachable();
   }
 }
 
@@ -224,7 +207,7 @@ LLVMValueRef build_terminal_expr(const IRState *state, const TerminalExpr *term)
     LLVMTypeRef lit_type = LLVMInt32TypeInContext(state->context);
 
     // TODO: Need to handle the case of 0 being returned from strtoll with errno set - this happens for invalid
-    // conversion
+    // conversion - This check should be moved to parser as part of type checking
     long long int_val = strtoll(term->tok->item, NULL, INT_BASE);
     if (int_val == LLONG_MIN || int_val == LLONG_MAX) {
       fprintf(stderr, "Failed to convert return value into integer: %s\n", term->tok->item);
@@ -235,16 +218,12 @@ LLVMValueRef build_terminal_expr(const IRState *state, const TerminalExpr *term)
     return LLVMConstInt(lit_type, int_val, false);
   case T_IDENTIFIER:
     const LLVMTypeRef var_type = LLVMInt32TypeInContext(state->context);
-    const LLVMValueRef *var_ptr = load_variable(&state->variables, term->tok->item);
-    if (var_ptr == NULL) {
-      fprintf(stderr, "Undefined variable: %s\n", term->tok->item);
-      return NULL;
-    }
+    const LLVMValueRef value_ref = load_variable(&state->values, term->tok->item);
+    assert(value_ref != NULL);
 
-    return LLVMBuildLoad2(state->builder, var_type, *var_ptr, term->tok->item);
+    return LLVMBuildLoad2(state->builder, var_type, value_ref, term->tok->item);
   default:
-    fprintf(stderr, "Unexpected token type for expression: %s\n", t_type_to_string(term->tok->t_type));
-    return NULL;
+    unreachable();
   }
 }
 
@@ -252,20 +231,15 @@ LLVMValueRef build_arithmetic_expr(const IRState *state, const ArithmeticExpr *a
   assert(arith != NULL && arith->op->t_type == T_ARITHMETIC);
 
   LLVMValueRef lhs = build_terminal_expr(state, &arith->lhs);
-  if (lhs == NULL) {
-    return NULL;
-  }
+  assert(lhs != NULL);
   LLVMValueRef rhs = build_expression(state, arith->rhs);
-  if (rhs == NULL) {
-    return NULL;
-  }
+  assert(rhs != NULL);
 
   switch (arith->op->item[0]) {
   case '+':
     return LLVMBuildAdd(state->builder, lhs, rhs, arith->lhs.tok->item);
   default:
-    fprintf(stderr, "Unexpected arithmetic operator: %s\n", arith->op->item);
-    return NULL;
+    unreachable();
   }
 }
 
@@ -304,17 +278,17 @@ unsigned char generate_object_file(const IRState *state, const char *file_name) 
 }
 
 void dispose_ir_state(IRState *state) {
-  dyn_array_free(&state->variables);
+  dyn_array_free(&state->values);
 
   LLVMDisposeBuilder(state->builder);
   LLVMDisposeModule(state->module);
   LLVMContextDispose(state->context);
 }
 
-LLVMValueRef *load_variable(const Variables *variables, const char *identifier) {
-  for (size_t i = 0; i < variables->count; i++) {
-    if (strcmp(variables->elements[i].name, identifier) == 0) {
-      return &variables->elements[i].ptr;
+LLVMValueRef load_variable(const ValueRefs *values, const char *identifier) {
+  for (size_t i = 0; i < values->count; i++) {
+    if (strcmp(values->elements[i].name, identifier) == 0) {
+      return values->elements[i].ptr;
     }
   }
 

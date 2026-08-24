@@ -28,13 +28,30 @@
   X(E_ARITHMETIC)                                                                                                      \
   X(E_TERM)
 
+#define DATA_TYPES                                                                                                     \
+  X(D_NONE)                                                                                                            \
+  X(D_I32)
+
 #define X(N) N,
 typedef enum { STATEMENT_TYPES } StatementType;
 typedef enum { EXPRESSION_TYPES } ExpressionType;
+typedef enum { DATA_TYPES } DataType;
 #undef X
 
 const char *s_type_to_string(StatementType s);
 const char *e_type_to_string(ExpressionType e);
+const char *d_type_to_string(DataType e);
+
+typedef struct {
+  char *name;
+  DataType d_type;
+} Variable;
+
+typedef struct {
+  Variable *elements;
+  size_t count;
+  size_t capacity;
+} Variables;
 
 typedef struct Expression Expression;
 
@@ -68,7 +85,7 @@ typedef struct {
 
 typedef struct {
   const Token *identifier;
-  const Token *data_type;
+  DataType data_type;
   Expression expr;
 } DeclarationStatement;
 
@@ -79,8 +96,9 @@ typedef struct {
 // TODO: Functions eventually need to take parameters - for now always empty
 typedef struct {
   const Token *identifier;
-  const Token *return_type;
+  DataType return_type;
   Statements statements;
+  Variables variables;
 } Function;
 
 typedef struct {
