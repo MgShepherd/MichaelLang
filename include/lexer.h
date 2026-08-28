@@ -17,6 +17,7 @@
   X(T_EQUALS)                                                                                                          \
   X(T_COLON)                                                                                                           \
   X(T_ARITHMETIC)                                                                                                      \
+  X(T_DATATYPE)                                                                                                        \
   X(T_SEMI)
 
 #define X(N) N,

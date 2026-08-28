@@ -257,7 +257,7 @@ unsigned char parse_dec_statement(Statement *statement, const Tokens *tokens, Va
     return 1;
   }
 
-  const Token *next = expect_next(T_KEYWORD, tokens, idx);
+  const Token *next = expect_next(T_DATATYPE, tokens, idx);
   if (next == NULL) {
     fprintf(stderr, "Failed to read data type for declaration statement\n");
     return 1;
@@ -345,7 +345,7 @@ unsigned char parse_function(Function *function, const Tokens *tokens, size_t *i
     return 1;
   }
 
-  const Token *next = expect_next(T_KEYWORD, tokens, idx);
+  const Token *next = expect_next(T_DATATYPE, tokens, idx);
   if (next == NULL) {
     fprintf(stderr, "Expected return type for function\n");
     return 1;
@@ -453,7 +453,7 @@ unsigned char parse_expression(Expression *expression, const Tokens *tokens, con
 }
 
 DataType tok_to_data_type(const Token *token) {
-  assert(token->t_type == T_KEYWORD);
+  assert(token->t_type == T_DATATYPE);
   if (strcmp("i32", token->item) == 0) {
     return D_I32;
   }
