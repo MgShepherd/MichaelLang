@@ -12,7 +12,9 @@
 // DeclarationStatement := T_IDENTIFIER ':' DataType '=' Expression ';'
 // ReturnStatement := 'return' Expression ';'
 // Expression := TerminalExpr | ArithmeticExpr
-// TerminalExpr := T_IDENTIFIER | T_NUMERIC_LITERAL
+// TerminalExpr := (+|-) (IdentifierExpr | NumberExpr)
+// IdentifierExpr := T_IDENTIFIER
+// NumberExpr := T_NUMERIC_LIT | T_NUMERIC_LIT
 // ArithmeticExpr := TerminalExpr ArithmeticOp Expression
 //
 // DataType := 'i32'
@@ -32,10 +34,15 @@
   X(D_NONE)                                                                                                            \
   X(D_I32)
 
+#define SIGN                                                                                                           \
+  X(SIGN_POSTIIVE)                                                                                                     \
+  X(SIGN_NEGATIVE)
+
 #define X(N) N,
 typedef enum { STATEMENT_TYPES } StatementType;
 typedef enum { EXPRESSION_TYPES } ExpressionType;
 typedef enum { DATA_TYPES } DataType;
+typedef enum { SIGN } Sign;
 #undef X
 
 const char *s_type_to_string(StatementType s);
@@ -57,6 +64,7 @@ typedef struct Expression Expression;
 
 typedef struct {
   const Token *tok;
+  Sign sign;
 } TerminalExpr;
 
 typedef struct {

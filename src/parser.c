@@ -63,6 +63,13 @@ unsigned char parse_ret_statement(Statement *statement, const Tokens *tokens, co
 unsigned char parse_expression(Expression *expression, const Tokens *tokens, const Variables *variables, size_t *idx);
 
 /*
+ * parse_terminal_expr will attempt to convert the next tokens into a terminal expression
+ * This can either be a numerical constant (potentially signed) or a variable identifier
+ * Returns 0 on success, 1 on failure
+ */
+unsigned char parse_terminal_expr(TerminalExpr *term, const Tokens *tokens, const Variables *variables, size_t *idx);
+
+/*
  * expect_next will read the next token and check it matches the expected token type
  * If matches will return the token pointer, otherwise will return NULL
  * Will update the idx pointer to point at the next token when valid
@@ -122,7 +129,6 @@ const char *d_type_to_string(DataType e) {
     return "unknown";
   }
 }
-#undef X
 
 unsigned char parse_tokens(Program *program, const Tokens *tokens) {
   assert(tokens != NULL && tokens->count > 0);
@@ -409,19 +415,11 @@ unsigned char parse_expression(Expression *expression, const Tokens *tokens, con
     return 1;
   }
 
-  // TODO: Check type of expression token matches that of what we are assigning/returning
-  const Token *next = &tokens->elements[(*idx)++];
-  if (next->t_type != T_IDENTIFIER && next->t_type != T_NUMERIC_LIT) {
-    fprintf(stderr, "Expected next token to be literal or identifier, got %s\n", t_type_to_string(next->t_type));
+  TerminalExpr term;
+  if (parse_terminal_expr(&term, tokens, variables, idx) != 0) {
     return 1;
   }
 
-  if (next->t_type == T_IDENTIFIER && !variable_exists(variables, next)) {
-    fprintf(stderr, "Undefined variable: %s\n", next->item);
-    return 1;
-  }
-
-  TerminalExpr term = {.tok = next};
   if (*idx >= tokens->count || tokens->elements[*idx].t_type != T_ARITHMETIC) {
     expression->e_type = E_TERM;
     expression->e_union.terminal = term;
@@ -449,6 +447,43 @@ unsigned char parse_expression(Expression *expression, const Tokens *tokens, con
 
   expression->e_type = E_ARITHMETIC;
   expression->e_union.arithmetic = arith;
+  return 0;
+}
+
+unsigned char parse_terminal_expr(TerminalExpr *term, const Tokens *tokens, const Variables *variables, size_t *idx) {
+  const Token *next = &tokens->elements[(*idx)++];
+
+  if (next->t_type == T_ARITHMETIC) {
+    if (strcmp(next->item, "+") == 0) {
+      term->sign = SIGN_POSTIIVE;
+    } else if (strcmp(next->item, "-") == 0) {
+      term->sign = SIGN_NEGATIVE;
+    } else {
+      fprintf(stderr, "Invalid sign for terminal expression: %s\n", next->item);
+      return 1;
+    }
+
+    next = &tokens->elements[(*idx)++];
+  } else {
+    term->sign = SIGN_POSTIIVE;
+  }
+
+  if (next->t_type == T_IDENTIFIER) {
+    if (!variable_exists(variables, next)) {
+      fprintf(stderr, "Undefined variable: %s\n", next->item);
+      return 1;
+    }
+
+    term->tok = next;
+    return 0;
+  }
+
+  if (next->t_type != T_NUMERIC_LIT) {
+    fprintf(stderr, "Invalid token type for expression: %s\n", t_type_to_string(next->t_type));
+    return 1;
+  }
+
+  term->tok = next;
   return 0;
 }
 
