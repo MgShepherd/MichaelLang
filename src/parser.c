@@ -427,6 +427,7 @@ unsigned char parse_expression(Expression *expression, const Tokens *tokens, con
   }
 
   const Token *op = &tokens->elements[(*idx)++];
+  assert(op->t_type == T_ARITHMETIC);
   Expression rhs;
   if (parse_expression(&rhs, tokens, variables, idx) != 0) {
     return 1;

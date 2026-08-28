@@ -140,6 +140,7 @@ LLVMTypeRef get_type(const IRState *state, DataType d_type) {
     return LLVMInt32TypeInContext(state->context);
   }
 
+  abort();
   unreachable();
 }
 
@@ -155,6 +156,7 @@ unsigned char build_statement(IRState *state, const Statement *statement) {
     }
     break;
   default:
+    abort();
     unreachable();
   }
 
@@ -193,6 +195,7 @@ LLVMValueRef build_expression(const IRState *state, const Expression *expr) {
   case E_ARITHMETIC:
     return build_arithmetic_expr(state, &expr->e_union.arithmetic);
   default:
+    abort();
     unreachable();
   }
 }
@@ -225,6 +228,7 @@ LLVMValueRef build_terminal_expr(const IRState *state, const TerminalExpr *term)
     processed = LLVMBuildLoad2(state->builder, var_type, value_ref, term->tok->item);
     break;
   default:
+    abort();
     unreachable();
   }
 
@@ -246,7 +250,10 @@ LLVMValueRef build_arithmetic_expr(const IRState *state, const ArithmeticExpr *a
   switch (arith->op->item[0]) {
   case '+':
     return LLVMBuildAdd(state->builder, lhs, rhs, arith->lhs.tok->item);
+  case '-':
+    return LLVMBuildSub(state->builder, lhs, rhs, arith->lhs.tok->item);
   default:
+    abort();
     unreachable();
   }
 }
