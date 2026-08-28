@@ -136,7 +136,7 @@ bool process_as_symbol(Token *tok, const char *input, size_t *idx) {
       {.key = "(", .value = T_LEFT_PAREN},  {.key = ")", .value = T_RIGHT_PAREN}, {.key = "{", .value = T_LEFT_CURLY},
       {.key = "}", .value = T_RIGHT_CURLY}, {.key = "->", .value = T_ARROW},      {.key = "i32", .value = T_DATATYPE},
       {.key = ":", .value = T_COLON},       {.key = "=", .value = T_EQUALS},      {.key = ";", .value = T_SEMI},
-      {.key = "+", .value = T_ARITHMETIC},
+      {.key = "+", .value = T_ARITHMETIC},  {.key = "-", .value = T_ARITHMETIC},
   };
 
   for (size_t i = 0; i < sizeof(SYMBOL_MAPPINGS) / sizeof(TokenMapping); i++) {

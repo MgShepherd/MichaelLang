@@ -140,6 +140,7 @@ LLVMTypeRef get_type(const IRState *state, DataType d_type) {
     return LLVMInt32TypeInContext(state->context);
   }
 
+  abort();
   unreachable();
 }
 
@@ -155,6 +156,7 @@ unsigned char build_statement(IRState *state, const Statement *statement) {
     }
     break;
   default:
+    abort();
     unreachable();
   }
 
@@ -193,6 +195,7 @@ LLVMValueRef build_expression(const IRState *state, const Expression *expr) {
   case E_ARITHMETIC:
     return build_arithmetic_expr(state, &expr->e_union.arithmetic);
   default:
+    abort();
     unreachable();
   }
 }
@@ -201,6 +204,7 @@ LLVMValueRef build_terminal_expr(const IRState *state, const TerminalExpr *term)
   assert(term != NULL);
 
   // TODO: Currently we only support integers as numeric literals, we should support floats etc in future
+  LLVMValueRef processed;
   switch (term->tok->t_type) {
   case T_NUMERIC_LIT:
     // TODO: Need to work out the literal type dynamically, rather than hardcoding to int
@@ -214,17 +218,25 @@ LLVMValueRef build_terminal_expr(const IRState *state, const TerminalExpr *term)
       return NULL;
     }
 
-    // TODO: Check what happens for negative return values, as think this may have an issue
-    return LLVMConstInt(lit_type, int_val, false);
+    processed = LLVMConstInt(lit_type, int_val, false);
+    break;
   case T_IDENTIFIER:
     const LLVMTypeRef var_type = LLVMInt32TypeInContext(state->context);
     const LLVMValueRef value_ref = load_variable(&state->values, term->tok->item);
     assert(value_ref != NULL);
 
-    return LLVMBuildLoad2(state->builder, var_type, value_ref, term->tok->item);
+    processed = LLVMBuildLoad2(state->builder, var_type, value_ref, term->tok->item);
+    break;
   default:
+    abort();
     unreachable();
   }
+
+  if (term->sign == SIGN_NEGATIVE) {
+    return LLVMBuildNeg(state->builder, processed, term->tok->item);
+  }
+
+  return processed;
 }
 
 LLVMValueRef build_arithmetic_expr(const IRState *state, const ArithmeticExpr *arith) {
@@ -238,7 +250,10 @@ LLVMValueRef build_arithmetic_expr(const IRState *state, const ArithmeticExpr *a
   switch (arith->op->item[0]) {
   case '+':
     return LLVMBuildAdd(state->builder, lhs, rhs, arith->lhs.tok->item);
+  case '-':
+    return LLVMBuildSub(state->builder, lhs, rhs, arith->lhs.tok->item);
   default:
+    abort();
     unreachable();
   }
 }
