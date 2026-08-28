@@ -11,11 +11,12 @@
 
 #define TOKEN_ARRAY_LEN_FACTOR 0.6
 
-unsigned char insert_token(Tokens *tokens, const char *input, size_t token_start, size_t token_end);
-TokenType get_token_type(const char *token);
-bool is_separator_token(char current);
-bool is_valid_identifier(const char *token);
-bool is_numeric_literal(const char *token);
+unsigned char get_next_token(Token *tok, const char *input, size_t *i);
+bool process_as_keyword(Token *tok, const char *input, size_t *idx);
+bool process_as_symbol(Token *tok, const char *input, size_t *idx);
+bool process_as_identifier(Token *tok, const char *input, size_t *idx);
+bool process_as_numeric_lit(Token *tok, const char *input, size_t *idx);
+bool next_token_matches(const char *compare, const char *input, size_t idx);
 
 #define X(N)                                                                                                           \
   case N:                                                                                                              \
@@ -35,15 +36,6 @@ typedef struct {
   TokenType value;
 } TokenMapping;
 
-static const TokenMapping mappings[] = {
-    {.key = "func", .value = T_KEYWORD},
-    {.key = "i32", .value = T_KEYWORD},
-    {.key = "return", .value = T_KEYWORD},
-    {.key = "->", .value = T_ARROW},
-};
-
-static const size_t NUM_TOKEN_MAPPINGS = (sizeof(mappings) / sizeof(mappings[0]));
-
 unsigned char lexer_process_tokens(Tokens *tokens, const char *data) {
   assert(data != NULL);
 
@@ -62,130 +54,176 @@ unsigned char lexer_process_tokens(Tokens *tokens, const char *data) {
 
   dyn_array_init(tokens, sizeof(Token), capacity);
 
-  size_t token_start = 0;
-  for (size_t i = 0; i < data_len; i++) {
-    const bool is_separator = is_separator_token(data[i]);
-
-    if (isspace(data[i]) > 0 || is_separator) {
-      if (insert_token(tokens, data, token_start, i) != 0) {
-        fprintf(stderr, "Failed to insert token into tokens array\n");
-        dyn_array_free(tokens);
-        return 1;
-      }
-      token_start = i + 1;
+  size_t idx = 0;
+  while (idx < data_len) {
+    if (isspace(data[idx])) {
+      idx++;
+      continue;
     }
 
-    // If the current char is a separator, insert another token for the separator itself
-    if (is_separator && insert_token(tokens, data, i, i + 1) != 0) {
-      fprintf(stderr, "Failed to insert token into tokens array\n");
-      dyn_array_free(tokens);
+    Token tok;
+    if (get_next_token(&tok, data, &idx) != 0) {
+      fprintf(stderr, "Failed to get next token starting from character: %c\n", data[idx]);
       return 1;
     }
-  }
 
-  if (token_start < data_len && insert_token(tokens, data, token_start, data_len) != 0) {
-    fprintf(stderr, "Failed to insert token into tokens array\n");
-    dyn_array_free(tokens);
-    return 1;
+    dyn_array_insert(tokens, tok);
   }
 
   return 0;
 }
 
-unsigned char insert_token(Tokens *tokens, const char *input, size_t token_start, size_t token_end) {
-  assert(tokens->elements != NULL);
-  // If the token is empty, don't insert it but continue with the program
-  if (token_end == 0 || token_start >= token_end) {
+unsigned char get_next_token(Token *tok, const char *input, size_t *idx) {
+  tok->t_type = T_NONE;
+
+  if (process_as_keyword(tok, input, idx)) {
+    assert(tok->t_type != T_NONE);
     return 0;
   }
 
-  char *item = string_slice(input, token_start, token_end);
-  if (item == NULL) {
-    fprintf(stderr, "Failed to create token string for token starting at position %zu, ending at %zu\n", token_start,
-            token_end);
-    return 1;
-  }
-  TokenType t_type = get_token_type(item);
-  if (t_type == T_NONE) {
-    fprintf(stderr, "Failed to process token type for token: %s\n", item);
-    free(item);
-    return 1;
+  if (process_as_symbol(tok, input, idx)) {
+    assert(tok->t_type != T_NONE);
+    return 0;
   }
 
-  Token new_token = {.item = item, .t_type = t_type};
-  dyn_array_insert(tokens, new_token);
+  if (process_as_identifier(tok, input, idx)) {
+    assert(tok->t_type != T_NONE);
+    return 0;
+  }
 
-  return 0;
+  if (process_as_numeric_lit(tok, input, idx)) {
+    assert(tok->t_type != T_NONE);
+    return 0;
+  }
+
+  return 1;
 }
 
-TokenType get_token_type(const char *token) {
-  switch (token[0]) {
-  case '(':
-    return T_LEFT_PAREN;
-  case ')':
-    return T_RIGHT_PAREN;
-  case '{':
-    return T_LEFT_CURLY;
-  case '}':
-    return T_RIGHT_CURLY;
-  case '=':
-    return T_EQUALS;
-  case ';':
-    return T_SEMI;
-  case ':':
-    return T_COLON;
-  case '+':
-    return T_ARITHMETIC;
-  }
+bool process_as_keyword(Token *tok, const char *input, size_t *idx) {
+  static const char *KEYWORDS[] = {"func", "return"};
 
-  for (size_t i = 0; i < NUM_TOKEN_MAPPINGS; i++) {
-    if (strcmp(mappings[i].key, token) == 0) {
-      return mappings[i].value;
+  for (size_t i = 0; i < sizeof(KEYWORDS) / sizeof(char *); i++) {
+    if (!next_token_matches(KEYWORDS[i], input, *idx)) {
+      continue;
     }
+
+    const size_t keyword_len = strlen(KEYWORDS[i]);
+    // Note: For now all keywords must end with a space (or end of input), eventually may be able to end with
+    // parentheses
+    if (*idx + keyword_len < strlen(input) && !isspace(input[*idx + keyword_len])) {
+      continue;
+    }
+
+    char *out_buf = malloc(keyword_len + 1);
+    // TODO: Handle allocator failure better than just asserting no error
+    assert(out_buf != NULL);
+    strcpy(out_buf, KEYWORDS[i]);
+
+    tok->item = out_buf;
+    tok->t_type = T_KEYWORD;
+
+    // Increment idx so we are now pointing at the element after the space
+    *idx += keyword_len + 1;
+
+    return true;
   }
 
-  if (is_valid_identifier(token)) {
-    return T_IDENTIFIER;
-  }
-
-  if (is_numeric_literal(token)) {
-    return T_NUMERIC_LIT;
-  }
-
-  return T_NONE;
+  return false;
 }
 
-bool is_valid_identifier(const char *token) {
-  assert(token[0] != '\0');
-  if (token[0] != '_' && !isalpha(token[0])) {
+bool process_as_symbol(Token *tok, const char *input, size_t *idx) {
+  static const TokenMapping SYMBOL_MAPPINGS[] = {
+      {.key = "(", .value = T_LEFT_PAREN},  {.key = ")", .value = T_RIGHT_PAREN}, {.key = "{", .value = T_LEFT_CURLY},
+      {.key = "}", .value = T_RIGHT_CURLY}, {.key = "->", .value = T_ARROW},      {.key = "i32", .value = T_DATATYPE},
+      {.key = ":", .value = T_COLON},       {.key = "=", .value = T_EQUALS},      {.key = ";", .value = T_SEMI},
+      {.key = "+", .value = T_ARITHMETIC},
+  };
+
+  for (size_t i = 0; i < sizeof(SYMBOL_MAPPINGS) / sizeof(TokenMapping); i++) {
+    if (!next_token_matches(SYMBOL_MAPPINGS[i].key, input, *idx)) {
+      continue;
+    }
+
+    const size_t symbol_len = strlen(SYMBOL_MAPPINGS[i].key);
+    char *out_buf = malloc(symbol_len + 1);
+    // TODO: Handle allocator failure better than just asserting no error
+    assert(out_buf != NULL);
+    strcpy(out_buf, SYMBOL_MAPPINGS[i].key);
+
+    tok->item = out_buf;
+    tok->t_type = SYMBOL_MAPPINGS[i].value;
+
+    // Increment idx so we are now pointer at the element directly after the symbol
+    *idx += symbol_len;
+
+    return true;
+  }
+
+  return false;
+}
+
+bool process_as_identifier(Token *tok, const char *input, size_t *idx) {
+  const size_t input_len = strlen(input);
+  if (*idx >= strlen(input)) {
     return false;
   }
 
-  size_t i = 1;
-  while (token[i] != '\0') {
-    if (token[i] != '_' && !isalpha(token[i]) && !isdigit(token[i])) {
-      return false;
+  size_t i = *idx;
+  if (input[i] != '_' && !isalpha(input[i])) {
+    return false;
+  }
+  i++;
+
+  while (i < input_len) {
+    if (input[i] != '_' && !isalpha(input[i]) && !isdigit(input[i])) {
+      break;
     }
     i++;
   }
 
+  tok->item = string_slice(input, *idx, i);
+  // TODO: Handle allocator failure better than just asserting no error
+  assert(tok->item != NULL);
+  tok->t_type = T_IDENTIFIER;
+
+  *idx = i;
+
   return true;
 }
 
-bool is_numeric_literal(const char *token) {
-  assert(token[0] != '\0');
+bool process_as_numeric_lit(Token *tok, const char *input, size_t *idx) {
+  size_t i = *idx;
+
+  if (!isdigit(input[i++])) {
+    return false;
+  }
+
+  while (i < strlen(input)) {
+    if (!isdigit(input[i])) {
+      break;
+    }
+    i++;
+  }
+
+  tok->item = string_slice(input, *idx, i);
+  // TODO: Handle allocator failure better than just asserting no error
+  assert(tok->item != NULL);
+  tok->t_type = T_NUMERIC_LIT;
+
+  *idx = i;
+
+  return true;
+}
+
+bool next_token_matches(const char *compare, const char *input, size_t idx) {
   size_t i = 0;
-  while (token[i] != '\0') {
-    if (!isdigit(token[i])) {
+  const size_t input_len = strlen(input);
+  while (i < strlen(compare)) {
+    if (idx + i >= input_len || input[idx + i] != compare[i]) {
       return false;
     }
     i++;
   }
 
   return true;
-}
-
-bool is_separator_token(char current) {
-  return current == ':' || current == '{' || current == '}' || current == '(' || current == ')' || current == ';' ||
-         current == '=';
 }

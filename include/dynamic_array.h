@@ -72,11 +72,12 @@
  */
 #define dyn_array_free(dyn_arr)                                                                                        \
   {                                                                                                                    \
-    assert((dyn_arr) != NULL && (dyn_arr)->elements != NULL);                                                          \
-    free((dyn_arr)->elements);                                                                                         \
-    (dyn_arr)->elements = NULL;                                                                                        \
-    (dyn_arr)->count = 0;                                                                                              \
-    (dyn_arr)->capacity = 0;                                                                                           \
+    if ((dyn_arr) != NULL && (dyn_arr)->elements != NULL) {                                                            \
+      free((dyn_arr)->elements);                                                                                       \
+      (dyn_arr)->elements = NULL;                                                                                      \
+      (dyn_arr)->count = 0;                                                                                            \
+      (dyn_arr)->capacity = 0;                                                                                         \
+    }                                                                                                                  \
   }
 
 #endif //_DYNAMIC_ARRAY_H_
