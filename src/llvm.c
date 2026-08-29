@@ -47,6 +47,7 @@ LLVMTypeRef get_type(const IRState *state, DataType d_type);
 unsigned char build_statement(IRState *state, const Statement *statement);
 // Declaration statement can only error due to failing to add ValueRef into array
 unsigned char build_declaration_statement(IRState *state, const DeclarationStatement *dec);
+void build_assignment_statement(IRState *state, const AssignmentStatement *assign);
 void build_return_statement(const IRState *state, const ReturnStatement *ret);
 
 /*
@@ -156,6 +157,9 @@ unsigned char build_statement(IRState *state, const Statement *statement) {
       return 1;
     }
     break;
+  case S_ASSIGNMENT:
+    build_assignment_statement(state, &statement->s_union.assign);
+    break;
   default:
     abort();
     unreachable();
@@ -191,6 +195,17 @@ unsigned char build_declaration_statement(IRState *state, const DeclarationState
   dyn_array_insert(&state->values, var);
 
   return 0;
+}
+
+void build_assignment_statement(IRState *state, const AssignmentStatement *assign) {
+  assert(assign != NULL);
+
+  LLVMValueRef expr_output = build_expression(state, &assign->expr);
+  assert(expr_output != NULL);
+  LLVMValueRef assign_var = load_identifier(&state->values, assign->identifier->item);
+  assert(assign_var != NULL);
+
+  LLVMBuildStore(state->builder, expr_output, assign_var);
 }
 
 LLVMValueRef build_expression(const IRState *state, const Expression *expr) {

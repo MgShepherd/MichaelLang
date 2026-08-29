@@ -10,6 +10,7 @@
 // Statement := FunctionStatement | DeclarationStatement | ReturnStatement
 // FunctionStatement := 'func' T_IDENTIFIER '(' ')' '->' DataType '{' [Statement] '}'
 // DeclarationStatement := T_IDENTIFIER ':' (var) DataType '=' Expression ';'
+// AssignmentStatement := T_IDENTIFIER '=' Expression ';'
 // ReturnStatement := 'return' Expression ';'
 // Expression := TerminalExpr | ArithmeticExpr
 // TerminalExpr := (+|-) (IdentifierExpr | NumberExpr)
@@ -23,6 +24,7 @@
 #define STATEMENT_TYPES                                                                                                \
   X(S_NONE)                                                                                                            \
   X(S_DECLARATION)                                                                                                     \
+  X(S_ASSIGNMENT)                                                                                                      \
   X(S_RETURN)
 
 #define EXPRESSION_TYPES                                                                                               \
@@ -48,6 +50,9 @@ typedef enum { SIGN } Sign;
 const char *s_type_to_string(StatementType s);
 const char *e_type_to_string(ExpressionType e);
 const char *d_type_to_string(DataType e);
+
+// TODO: A lot of the statements use tokens currently which don't always fit that well for what we need, is there a
+// better representation
 
 typedef struct {
   char *name;
@@ -97,9 +102,14 @@ typedef struct {
   DataType data_type;
   Expression expr;
   // TODO: The variable boolean is duplicated in both the statement and the variable itself, is there a way to avoid
-  // this
+  // this - potentially need to change the identifier representation
   bool variable;
 } DeclarationStatement;
+
+typedef struct {
+  const Token *identifier;
+  Expression expr;
+} AssignmentStatement;
 
 typedef struct {
   Expression expr;
@@ -123,6 +133,7 @@ typedef struct {
 typedef union {
   DeclarationStatement dec;
   ReturnStatement ret;
+  AssignmentStatement assign;
 } StatementUnion;
 
 struct Statement {
