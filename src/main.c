@@ -16,7 +16,9 @@ int main(int argc, char **argv) {
   int response_code = 0;
   char *data = NULL;
   Tokens tokens;
+  tokens.elements = NULL;
   Program program;
+  program.functions.elements = NULL;
   char *file_name = NULL;
   char *obj_file_path = NULL;
   char *exe_file_path = NULL;

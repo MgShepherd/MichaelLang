@@ -9,7 +9,7 @@
 //
 // Statement := FunctionStatement | DeclarationStatement | ReturnStatement
 // FunctionStatement := 'func' T_IDENTIFIER '(' ')' '->' DataType '{' [Statement] '}'
-// DeclarationStatement := T_IDENTIFIER ':' DataType '=' Expression ';'
+// DeclarationStatement := T_IDENTIFIER ':' (var) DataType '=' Expression ';'
 // ReturnStatement := 'return' Expression ';'
 // Expression := TerminalExpr | ArithmeticExpr
 // TerminalExpr := (+|-) (IdentifierExpr | NumberExpr)
@@ -52,13 +52,14 @@ const char *d_type_to_string(DataType e);
 typedef struct {
   char *name;
   DataType d_type;
-} Variable;
+  bool variable;
+} Identifier;
 
 typedef struct {
-  Variable *elements;
+  Identifier *elements;
   size_t count;
   size_t capacity;
-} Variables;
+} Identifiers;
 
 typedef struct Expression Expression;
 
@@ -95,6 +96,9 @@ typedef struct {
   const Token *identifier;
   DataType data_type;
   Expression expr;
+  // TODO: The variable boolean is duplicated in both the statement and the variable itself, is there a way to avoid
+  // this
+  bool variable;
 } DeclarationStatement;
 
 typedef struct {
@@ -103,10 +107,10 @@ typedef struct {
 
 // TODO: Functions eventually need to take parameters - for now always empty
 typedef struct {
-  const Token *identifier;
+  const Token *name;
   DataType return_type;
   Statements statements;
-  Variables variables;
+  Identifiers identifiers;
 } Function;
 
 typedef struct {

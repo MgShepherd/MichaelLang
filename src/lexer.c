@@ -100,7 +100,7 @@ unsigned char get_next_token(Token *tok, const char *input, size_t *idx) {
 }
 
 bool process_as_keyword(Token *tok, const char *input, size_t *idx) {
-  static const char *KEYWORDS[] = {"func", "return"};
+  static const char *KEYWORDS[] = {"func", "return", "var"};
 
   for (size_t i = 0; i < sizeof(KEYWORDS) / sizeof(char *); i++) {
     if (!next_token_matches(KEYWORDS[i], input, *idx)) {
