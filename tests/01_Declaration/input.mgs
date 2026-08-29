@@ -1,7 +1,0 @@
-func main() -> i32 {
-	x: i32 = +20;
-	y: i32 = x+1;
-	z: i32 = 100+-y;
-	w: i32 = z - -9;
-	return w;
-}

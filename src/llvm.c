@@ -23,6 +23,7 @@
 typedef struct {
   char *name;
   LLVMValueRef ptr;
+  bool variable;
 } ValueRef;
 
 typedef struct {
@@ -62,7 +63,7 @@ unsigned char generate_object_file(const IRState *state, const char *file_name);
 
 void dispose_ir_state(IRState *state);
 
-LLVMValueRef load_variable(const ValueRefs *values, const char *identifier);
+LLVMValueRef load_identifier(const ValueRefs *values, const char *identifier);
 
 unsigned char program_to_object_file(const Program *program, const char *file_name) {
   assert(program != NULL);
@@ -113,9 +114,9 @@ unsigned char build_function(IRState *state, const Function *func) {
   LLVMTypeRef return_type = get_type(state, func->return_type);
   // TODO: Will need updating when we support function parameters
   LLVMTypeRef func_type = LLVMFunctionType(return_type, NULL, 0, false);
-  LLVMValueRef llvm_func = LLVMAddFunction(state->module, func->identifier->item, func_type);
+  LLVMValueRef llvm_func = LLVMAddFunction(state->module, func->name->item, func_type);
 
-  LLVMBasicBlockRef block = LLVMAppendBasicBlockInContext(state->context, llvm_func, func->identifier->item);
+  LLVMBasicBlockRef block = LLVMAppendBasicBlockInContext(state->context, llvm_func, func->name->item);
   LLVMPositionBuilderAtEnd(state->builder, block);
 
   for (size_t i = 0; i < func->statements.count; i++) {
@@ -182,7 +183,11 @@ unsigned char build_declaration_statement(IRState *state, const DeclarationState
   assert(expr_output != NULL);
   LLVMBuildStore(state->builder, expr_output, var_ptr);
 
-  ValueRef var = {.name = dec->identifier->item, .ptr = var_ptr};
+  ValueRef var = {
+      .name = dec->identifier->item,
+      .ptr = var_ptr,
+      .variable = dec->variable,
+  };
   dyn_array_insert(&state->values, var);
 
   return 0;
@@ -222,7 +227,7 @@ LLVMValueRef build_terminal_expr(const IRState *state, const TerminalExpr *term)
     break;
   case T_IDENTIFIER:
     const LLVMTypeRef var_type = LLVMInt32TypeInContext(state->context);
-    const LLVMValueRef value_ref = load_variable(&state->values, term->tok->item);
+    const LLVMValueRef value_ref = load_identifier(&state->values, term->tok->item);
     assert(value_ref != NULL);
 
     processed = LLVMBuildLoad2(state->builder, var_type, value_ref, term->tok->item);
@@ -300,7 +305,7 @@ void dispose_ir_state(IRState *state) {
   LLVMContextDispose(state->context);
 }
 
-LLVMValueRef load_variable(const ValueRefs *values, const char *identifier) {
+LLVMValueRef load_identifier(const ValueRefs *values, const char *identifier) {
   for (size_t i = 0; i < values->count; i++) {
     if (strcmp(values->elements[i].name, identifier) == 0) {
       return values->elements[i].ptr;

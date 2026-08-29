@@ -28,7 +28,7 @@ unsigned char parse_functions(Functions *functions, const Tokens *tokens);
  * allocated element array, with a count and capacity Will error if exit_token is not found before reaching the end of
  * the input Returns 0 on success, 1 if there was a failure
  */
-unsigned char parse_statements(Statements *statements, Variables *variables, const Tokens *tokens, size_t *idx,
+unsigned char parse_statements(Statements *statements, Identifiers *identifiers, const Tokens *tokens, size_t *idx,
                                TokenType exit_token);
 
 /*
@@ -45,7 +45,7 @@ unsigned char parse_function(Function *function, const Tokens *tokens, size_t *i
  * Will update the provided variables array to include newly declared variable
  * Returns 0 on success, 1 on failure
  */
-unsigned char parse_dec_statement(Statement *statement, const Tokens *tokens, Variables *variables, size_t *idx);
+unsigned char parse_dec_statement(Statement *statement, const Tokens *tokens, Identifiers *identifiers, size_t *idx);
 
 /*
  * Will set the ret property of statement union for a valid return statement
@@ -53,21 +53,24 @@ unsigned char parse_dec_statement(Statement *statement, const Tokens *tokens, Va
  * Will additionally update the idx pointer to point at the next statement if valid
  * Returns 0 on success, 1 on failure
  */
-unsigned char parse_ret_statement(Statement *statement, const Tokens *tokens, const Variables *variables, size_t *idx);
+unsigned char parse_ret_statement(Statement *statement, const Tokens *tokens, const Identifiers *identifiers,
+                                  size_t *idx);
 
 /*
  * parse_expression will attempt to convert the next tokens into an expression and output to provided expression
  * Will update the idx pointer to point at the next token when valid
  * Returns 0 on success, 1 on failure
  */
-unsigned char parse_expression(Expression *expression, const Tokens *tokens, const Variables *variables, size_t *idx);
+unsigned char parse_expression(Expression *expression, const Tokens *tokens, const Identifiers *identifiers,
+                               size_t *idx);
 
 /*
  * parse_terminal_expr will attempt to convert the next tokens into a terminal expression
  * This can either be a numerical constant (potentially signed) or a variable identifier
  * Returns 0 on success, 1 on failure
  */
-unsigned char parse_terminal_expr(TerminalExpr *term, const Tokens *tokens, const Variables *variables, size_t *idx);
+unsigned char parse_terminal_expr(TerminalExpr *term, const Tokens *tokens, const Identifiers *identifiers,
+                                  size_t *idx);
 
 /*
  * expect_next will read the next token and check it matches the expected token type
@@ -77,15 +80,22 @@ unsigned char parse_terminal_expr(TerminalExpr *term, const Tokens *tokens, cons
 const Token *expect_next(TokenType expected, const Tokens *tokens, size_t *idx);
 
 /*
+ * expect_keyword will read the next token, check it is a keyword and check if the keyword matches the provided
+ * If matches will return the token pointer, otherwise will return NULL
+ * Will update the idx pointer to point at the next token when valid
+ */
+const Token *expect_keyword(const char *keyword, const Tokens *tokens, size_t *idx);
+
+/*
  * Converts a provided token into the matching datatype
  * Will return D_NONE if unable to convert token to datatype
  */
 DataType tok_to_data_type(const Token *token);
 
 /*
- * Checks whether a provided token has a variable in the variable list
+ * Checks whether a provided token has a identifier in the identifiers list
  */
-bool variable_exists(const Variables *variables, const Token *token);
+bool identifier_exists(const Identifiers *identifiers, const Token *token);
 
 /*
  * Frees functions array as well as nested statement arrays
@@ -175,7 +185,7 @@ unsigned char parse_functions(Functions *functions, const Tokens *tokens) {
   return 0;
 }
 
-unsigned char parse_statements(Statements *statements, Variables *variables, const Tokens *tokens, size_t *idx,
+unsigned char parse_statements(Statements *statements, Identifiers *identifiers, const Tokens *tokens, size_t *idx,
                                TokenType exit_token) {
   while (*idx < tokens->count && tokens->elements[*idx].t_type != exit_token) {
     Statement statement;
@@ -183,10 +193,10 @@ unsigned char parse_statements(Statements *statements, Variables *variables, con
 
     switch (tokens->elements[*idx].t_type) {
     case T_IDENTIFIER:
-      result = parse_dec_statement(&statement, tokens, variables, idx);
+      result = parse_dec_statement(&statement, tokens, identifiers, idx);
       break;
     case T_KEYWORD:
-      result = parse_ret_statement(&statement, tokens, variables, idx);
+      result = parse_ret_statement(&statement, tokens, identifiers, idx);
       break;
     default:
       fprintf(stderr, "Unexpected Token Type: %s\n", t_type_to_string(tokens->elements[*idx].t_type));
@@ -220,7 +230,7 @@ void functions_free(Functions *functions) {
       statement_free(&functions->elements[i].statements.elements[j]);
     }
     dyn_array_free(&functions->elements[i].statements);
-    dyn_array_free(&functions->elements[i].variables);
+    dyn_array_free(&functions->elements[i].identifiers);
   }
   dyn_array_free(functions);
 }
@@ -248,9 +258,10 @@ void expression_free(Expression *expression) {
   }
 }
 
-unsigned char parse_dec_statement(Statement *statement, const Tokens *tokens, Variables *variables, size_t *idx) {
+unsigned char parse_dec_statement(Statement *statement, const Tokens *tokens, Identifiers *identifiers, size_t *idx) {
   statement->s_type = S_NONE;
   DeclarationStatement dec;
+  Identifier ident;
 
   dec.identifier = expect_next(T_IDENTIFIER, tokens, idx);
   if (dec.identifier == NULL) {
@@ -261,6 +272,11 @@ unsigned char parse_dec_statement(Statement *statement, const Tokens *tokens, Va
   if (expect_next(T_COLON, tokens, idx) == NULL) {
     fprintf(stderr, "Failed to read colon for declaration statement\n");
     return 1;
+  }
+
+  if (expect_keyword("var", tokens, idx) != NULL) {
+    ident.variable = true;
+    dec.variable = true;
   }
 
   const Token *next = expect_next(T_DATATYPE, tokens, idx);
@@ -280,7 +296,7 @@ unsigned char parse_dec_statement(Statement *statement, const Tokens *tokens, Va
     return 1;
   }
 
-  if (parse_expression(&dec.expr, tokens, variables, idx) != 0) {
+  if (parse_expression(&dec.expr, tokens, identifiers, idx) != 0) {
     fprintf(stderr, "Failed to parse expression for declaration statement\n");
     return 1;
   }
@@ -290,8 +306,9 @@ unsigned char parse_dec_statement(Statement *statement, const Tokens *tokens, Va
     return 1;
   }
 
-  Variable var = {.d_type = dec.data_type, .name = dec.identifier->item};
-  dyn_array_insert(variables, var);
+  ident.d_type = dec.data_type;
+  ident.name = dec.identifier->item;
+  dyn_array_insert(identifiers, ident);
 
   statement->s_type = S_DECLARATION;
   statement->s_union.dec = dec;
@@ -299,16 +316,17 @@ unsigned char parse_dec_statement(Statement *statement, const Tokens *tokens, Va
   return 0;
 }
 
-unsigned char parse_ret_statement(Statement *statement, const Tokens *tokens, const Variables *variables, size_t *idx) {
+unsigned char parse_ret_statement(Statement *statement, const Tokens *tokens, const Identifiers *identifiers,
+                                  size_t *idx) {
   statement->s_type = S_NONE;
   ReturnStatement ret;
 
-  if (expect_next(T_KEYWORD, tokens, idx) == NULL) {
+  if (expect_keyword("return", tokens, idx) == NULL) {
     fprintf(stderr, "Expected keyword token for return statement\n");
     return 1;
   }
 
-  if (parse_expression(&ret.expr, tokens, variables, idx) != 0) {
+  if (parse_expression(&ret.expr, tokens, identifiers, idx) != 0) {
     fprintf(stderr, "Failed to parse expression for return statement\n");
     return 1;
   }
@@ -325,13 +343,13 @@ unsigned char parse_ret_statement(Statement *statement, const Tokens *tokens, co
 }
 
 unsigned char parse_function(Function *function, const Tokens *tokens, size_t *idx) {
-  if (expect_next(T_KEYWORD, tokens, idx) == NULL) {
+  if (expect_keyword("func", tokens, idx) == NULL) {
     fprintf(stderr, "Expected keyword token for function\n");
     return 1;
   }
 
-  function->identifier = expect_next(T_IDENTIFIER, tokens, idx);
-  if (function->identifier == NULL) {
+  function->name = expect_next(T_IDENTIFIER, tokens, idx);
+  if (function->name == NULL) {
     fprintf(stderr, "Failed to get identifier for function\n");
     return 1;
   }
@@ -371,22 +389,22 @@ unsigned char parse_function(Function *function, const Tokens *tokens, size_t *i
   Statements statements;
   dyn_array_init(&statements, sizeof(Statement), FUNCTION_STATEMENTS_LEN_ESTIMATE);
 
-  Variables variables;
-  dyn_array_init(&variables, sizeof(Variable), FUNCTION_VARIABLES_LEN_ESTIMATE);
+  Identifiers identifiers;
+  dyn_array_init(&identifiers, sizeof(Identifier), FUNCTION_VARIABLES_LEN_ESTIMATE);
 
-  if (parse_statements(&statements, &variables, tokens, idx, T_RIGHT_CURLY) != 0) {
+  if (parse_statements(&statements, &identifiers, tokens, idx, T_RIGHT_CURLY) != 0) {
     fprintf(stderr, "Failed to process function body\n");
     dyn_array_free(&statements);
-    dyn_array_free(&variables);
+    dyn_array_free(&identifiers);
     return 1;
   }
   function->statements = statements;
-  function->variables = variables;
+  function->identifiers = identifiers;
 
   if (expect_next(T_RIGHT_CURLY, tokens, idx) == NULL) {
     fprintf(stderr, "Expected closing curly brace after function body\n");
     dyn_array_free(&statements);
-    dyn_array_free(&variables);
+    dyn_array_free(&identifiers);
     return 1;
   }
 
@@ -395,13 +413,11 @@ unsigned char parse_function(Function *function, const Tokens *tokens, size_t *i
 
 const Token *expect_next(TokenType expected, const Tokens *tokens, size_t *idx) {
   if (*idx >= tokens->count) {
-    fprintf(stderr, "Attempted to get next token but reached end of input\n");
     return NULL;
   }
 
   const Token *next = &tokens->elements[*idx];
   if (next->t_type != expected) {
-    fprintf(stderr, "Expected Token Type %s, but got %s\n", t_type_to_string(expected), t_type_to_string(next->t_type));
     return NULL;
   }
 
@@ -409,14 +425,28 @@ const Token *expect_next(TokenType expected, const Tokens *tokens, size_t *idx) 
   return next;
 }
 
-unsigned char parse_expression(Expression *expression, const Tokens *tokens, const Variables *variables, size_t *idx) {
+const Token *expect_keyword(const char *keyword, const Tokens *tokens, size_t *idx) {
+  const Token *keyword_tok = expect_next(T_KEYWORD, tokens, idx);
+  if (keyword_tok == NULL) {
+    return NULL;
+  }
+
+  if (strcmp(keyword_tok->item, keyword) != 0) {
+    return NULL;
+  }
+
+  return keyword_tok;
+}
+
+unsigned char parse_expression(Expression *expression, const Tokens *tokens, const Identifiers *identifiers,
+                               size_t *idx) {
   if (*idx >= tokens->count) {
     fprintf(stderr, "Attempted to get value token but reached end of input\n");
     return 1;
   }
 
   TerminalExpr term;
-  if (parse_terminal_expr(&term, tokens, variables, idx) != 0) {
+  if (parse_terminal_expr(&term, tokens, identifiers, idx) != 0) {
     return 1;
   }
 
@@ -429,7 +459,7 @@ unsigned char parse_expression(Expression *expression, const Tokens *tokens, con
   const Token *op = &tokens->elements[(*idx)++];
   assert(op->t_type == T_ARITHMETIC);
   Expression rhs;
-  if (parse_expression(&rhs, tokens, variables, idx) != 0) {
+  if (parse_expression(&rhs, tokens, identifiers, idx) != 0) {
     return 1;
   }
 
@@ -451,7 +481,8 @@ unsigned char parse_expression(Expression *expression, const Tokens *tokens, con
   return 0;
 }
 
-unsigned char parse_terminal_expr(TerminalExpr *term, const Tokens *tokens, const Variables *variables, size_t *idx) {
+unsigned char parse_terminal_expr(TerminalExpr *term, const Tokens *tokens, const Identifiers *identifiers,
+                                  size_t *idx) {
   const Token *next = &tokens->elements[(*idx)++];
 
   if (next->t_type == T_ARITHMETIC) {
@@ -470,7 +501,7 @@ unsigned char parse_terminal_expr(TerminalExpr *term, const Tokens *tokens, cons
   }
 
   if (next->t_type == T_IDENTIFIER) {
-    if (!variable_exists(variables, next)) {
+    if (!identifier_exists(identifiers, next)) {
       fprintf(stderr, "Undefined variable: %s\n", next->item);
       return 1;
     }
@@ -496,9 +527,9 @@ DataType tok_to_data_type(const Token *token) {
   return D_NONE;
 }
 
-bool variable_exists(const Variables *variables, const Token *token) {
-  for (size_t i = 0; i < variables->count; i++) {
-    if (strcmp(variables->elements[i].name, token->item) == 0) {
+bool identifier_exists(const Identifiers *identifiers, const Token *token) {
+  for (size_t i = 0; i < identifiers->count; i++) {
+    if (strcmp(identifiers->elements[i].name, token->item) == 0) {
       return true;
     }
   }
