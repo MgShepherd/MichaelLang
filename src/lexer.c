@@ -10,12 +10,20 @@
 #include <string.h>
 
 #define TOKEN_ARRAY_LEN_FACTOR 0.6
+#define CONTINUE_PROCESSING_STATUS 2
 
 unsigned char get_next_token(Token *tok, const char *input, size_t *i);
-bool process_as_keyword(Token *tok, const char *input, size_t *idx);
-bool process_as_symbol(Token *tok, const char *input, size_t *idx);
-bool process_as_identifier(Token *tok, const char *input, size_t *idx);
-bool process_as_numeric_lit(Token *tok, const char *input, size_t *idx);
+/*
+ * All processing functions return following status codes:
+ * 0 - Indicates the processing was successful
+ * 1 - Indicates there was an error when processing
+ * 2 - Indicates token is not the processed type, processing should continue
+ */
+unsigned char process_as_keyword(Token *tok, const char *input, size_t *idx);
+unsigned char process_as_symbol(Token *tok, const char *input, size_t *idx);
+unsigned char process_as_identifier(Token *tok, const char *input, size_t *idx);
+unsigned char process_as_numeric_lit(Token *tok, const char *input, size_t *idx);
+
 bool next_token_matches(const char *compare, const char *input, size_t idx);
 
 #define X(N)                                                                                                           \
@@ -76,30 +84,30 @@ unsigned char lexer_process_tokens(Tokens *tokens, const char *data) {
 unsigned char get_next_token(Token *tok, const char *input, size_t *idx) {
   tok->t_type = T_NONE;
 
-  if (process_as_keyword(tok, input, idx)) {
-    assert(tok->t_type != T_NONE);
-    return 0;
+  unsigned char result = process_as_keyword(tok, input, idx);
+  if (result != CONTINUE_PROCESSING_STATUS) {
+    return result;
   }
 
-  if (process_as_symbol(tok, input, idx)) {
-    assert(tok->t_type != T_NONE);
-    return 0;
+  result = process_as_symbol(tok, input, idx);
+  if (result != CONTINUE_PROCESSING_STATUS) {
+    return result;
   }
 
-  if (process_as_identifier(tok, input, idx)) {
-    assert(tok->t_type != T_NONE);
-    return 0;
+  result = process_as_identifier(tok, input, idx);
+  if (result != CONTINUE_PROCESSING_STATUS) {
+    return result;
   }
 
-  if (process_as_numeric_lit(tok, input, idx)) {
-    assert(tok->t_type != T_NONE);
-    return 0;
+  result = process_as_numeric_lit(tok, input, idx);
+  if (result != CONTINUE_PROCESSING_STATUS) {
+    return result;
   }
 
   return 1;
 }
 
-bool process_as_keyword(Token *tok, const char *input, size_t *idx) {
+unsigned char process_as_keyword(Token *tok, const char *input, size_t *idx) {
   static const char *KEYWORDS[] = {"func", "return", "var"};
 
   for (size_t i = 0; i < sizeof(KEYWORDS) / sizeof(char *); i++) {
@@ -115,8 +123,10 @@ bool process_as_keyword(Token *tok, const char *input, size_t *idx) {
     }
 
     char *out_buf = malloc(keyword_len + 1);
-    // TODO: Handle allocator failure better than just asserting no error
-    assert(out_buf != NULL);
+    if (out_buf == NULL) {
+      fprintf(stderr, "Failed to allocate require memory for processing keyword\n");
+      return 1;
+    }
     strcpy(out_buf, KEYWORDS[i]);
 
     tok->item = out_buf;
@@ -125,13 +135,13 @@ bool process_as_keyword(Token *tok, const char *input, size_t *idx) {
     // Increment idx so we are now pointing at the element after the space
     *idx += keyword_len + 1;
 
-    return true;
+    return 0;
   }
 
-  return false;
+  return CONTINUE_PROCESSING_STATUS;
 }
 
-bool process_as_symbol(Token *tok, const char *input, size_t *idx) {
+unsigned char process_as_symbol(Token *tok, const char *input, size_t *idx) {
   static const TokenMapping SYMBOL_MAPPINGS[] = {
       {.key = "(", .value = T_LEFT_PAREN},  {.key = ")", .value = T_RIGHT_PAREN}, {.key = "{", .value = T_LEFT_CURLY},
       {.key = "}", .value = T_RIGHT_CURLY}, {.key = "->", .value = T_ARROW},      {.key = "i32", .value = T_DATATYPE},
@@ -146,8 +156,10 @@ bool process_as_symbol(Token *tok, const char *input, size_t *idx) {
 
     const size_t symbol_len = strlen(SYMBOL_MAPPINGS[i].key);
     char *out_buf = malloc(symbol_len + 1);
-    // TODO: Handle allocator failure better than just asserting no error
-    assert(out_buf != NULL);
+    if (out_buf == NULL) {
+      fprintf(stderr, "Failed to allocate memory for symbol processing\n");
+      return 1;
+    }
     strcpy(out_buf, SYMBOL_MAPPINGS[i].key);
 
     tok->item = out_buf;
@@ -156,21 +168,21 @@ bool process_as_symbol(Token *tok, const char *input, size_t *idx) {
     // Increment idx so we are now pointer at the element directly after the symbol
     *idx += symbol_len;
 
-    return true;
+    return 0;
   }
 
-  return false;
+  return CONTINUE_PROCESSING_STATUS;
 }
 
-bool process_as_identifier(Token *tok, const char *input, size_t *idx) {
+unsigned char process_as_identifier(Token *tok, const char *input, size_t *idx) {
   const size_t input_len = strlen(input);
   if (*idx >= strlen(input)) {
-    return false;
+    return CONTINUE_PROCESSING_STATUS;
   }
 
   size_t i = *idx;
   if (input[i] != '_' && !isalpha(input[i])) {
-    return false;
+    return CONTINUE_PROCESSING_STATUS;
   }
   i++;
 
@@ -182,20 +194,22 @@ bool process_as_identifier(Token *tok, const char *input, size_t *idx) {
   }
 
   tok->item = string_slice(input, *idx, i);
-  // TODO: Handle allocator failure better than just asserting no error
-  assert(tok->item != NULL);
+  if (tok->item == NULL) {
+    fprintf(stderr, "Failed to allocate memory for identifier processing\n");
+    return 1;
+  }
   tok->t_type = T_IDENTIFIER;
 
   *idx = i;
 
-  return true;
+  return 0;
 }
 
-bool process_as_numeric_lit(Token *tok, const char *input, size_t *idx) {
+unsigned char process_as_numeric_lit(Token *tok, const char *input, size_t *idx) {
   size_t i = *idx;
 
   if (!isdigit(input[i++])) {
-    return false;
+    return CONTINUE_PROCESSING_STATUS;
   }
 
   while (i < strlen(input)) {
@@ -206,13 +220,15 @@ bool process_as_numeric_lit(Token *tok, const char *input, size_t *idx) {
   }
 
   tok->item = string_slice(input, *idx, i);
-  // TODO: Handle allocator failure better than just asserting no error
-  assert(tok->item != NULL);
+  if (tok->item == NULL) {
+    fprintf(stderr, "Failed to allocate memory for numeric literal processing\n");
+    return 1;
+  }
   tok->t_type = T_NUMERIC_LIT;
 
   *idx = i;
 
-  return true;
+  return 0;
 }
 
 bool next_token_matches(const char *compare, const char *input, size_t idx) {

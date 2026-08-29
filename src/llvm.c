@@ -115,9 +115,9 @@ unsigned char build_function(IRState *state, const Function *func) {
   LLVMTypeRef return_type = get_type(state, func->return_type);
   // TODO: Will need updating when we support function parameters
   LLVMTypeRef func_type = LLVMFunctionType(return_type, NULL, 0, false);
-  LLVMValueRef llvm_func = LLVMAddFunction(state->module, func->name->item, func_type);
+  LLVMValueRef llvm_func = LLVMAddFunction(state->module, func->name, func_type);
 
-  LLVMBasicBlockRef block = LLVMAppendBasicBlockInContext(state->context, llvm_func, func->name->item);
+  LLVMBasicBlockRef block = LLVMAppendBasicBlockInContext(state->context, llvm_func, func->name);
   LLVMPositionBuilderAtEnd(state->builder, block);
 
   for (size_t i = 0; i < func->statements.count; i++) {
@@ -181,16 +181,16 @@ unsigned char build_declaration_statement(IRState *state, const DeclarationState
 
   // TODO: Type is currently hardcoded to int32 - should be worked out based on the declaration statement
   LLVMTypeRef var_type = LLVMInt32TypeInContext(state->context);
-  LLVMValueRef var_ptr = LLVMBuildAlloca(state->builder, var_type, dec->identifier->item);
+  LLVMValueRef var_ptr = LLVMBuildAlloca(state->builder, var_type, dec->identifier->name);
 
   LLVMValueRef expr_output = build_expression(state, &dec->expr);
   assert(expr_output != NULL);
   LLVMBuildStore(state->builder, expr_output, var_ptr);
 
   ValueRef var = {
-      .name = dec->identifier->item,
+      .name = dec->identifier->name,
       .ptr = var_ptr,
-      .variable = dec->variable,
+      .variable = dec->identifier->variable,
   };
   dyn_array_insert(&state->values, var);
 
@@ -202,7 +202,7 @@ void build_assignment_statement(IRState *state, const AssignmentStatement *assig
 
   LLVMValueRef expr_output = build_expression(state, &assign->expr);
   assert(expr_output != NULL);
-  LLVMValueRef assign_var = load_identifier(&state->values, assign->identifier->item);
+  LLVMValueRef assign_var = load_identifier(&state->values, assign->identifier->name);
   assert(assign_var != NULL);
 
   LLVMBuildStore(state->builder, expr_output, assign_var);

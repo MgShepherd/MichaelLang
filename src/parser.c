@@ -281,24 +281,19 @@ unsigned char parse_dec_statement(Statement *statement, const Tokens *tokens, Id
   DeclarationStatement dec;
   Identifier ident;
 
-  dec.identifier = expect_next(T_IDENTIFIER, tokens, idx);
-  if (dec.identifier == NULL) {
+  const Token *ident_tok = expect_next(T_IDENTIFIER, tokens, idx);
+  if (ident_tok == NULL) {
     fprintf(stderr, "Failed to read identifier for declaration statement\n");
     return 1;
   }
+  ident.name = ident_tok->item;
 
   if (expect_next(T_COLON, tokens, idx) == NULL) {
     fprintf(stderr, "Failed to read colon for declaration statement\n");
     return 1;
   }
 
-  if (expect_keyword("var", tokens, idx) != NULL) {
-    ident.variable = true;
-    dec.variable = true;
-  } else {
-    ident.variable = false;
-    dec.variable = false;
-  }
+  ident.variable = expect_keyword("var", tokens, idx) != NULL;
 
   const Token *next = expect_next(T_DATATYPE, tokens, idx);
   if (next == NULL) {
@@ -306,8 +301,8 @@ unsigned char parse_dec_statement(Statement *statement, const Tokens *tokens, Id
     return 1;
   }
 
-  dec.data_type = tok_to_data_type(next);
-  if (dec.data_type == D_NONE) {
+  ident.d_type = tok_to_data_type(next);
+  if (ident.d_type == D_NONE) {
     fprintf(stderr, "Failed to parse keyword into datatype\n");
     return 1;
   }
@@ -327,9 +322,8 @@ unsigned char parse_dec_statement(Statement *statement, const Tokens *tokens, Id
     return 1;
   }
 
-  ident.d_type = dec.data_type;
-  ident.name = dec.identifier->item;
   dyn_array_insert(identifiers, ident);
+  dec.identifier = &identifiers->elements[identifiers->count - 1];
 
   statement->s_type = S_DECLARATION;
   statement->s_union.dec = dec;
@@ -342,19 +336,19 @@ unsigned char parse_assign_statement(Statement *statement, const Tokens *tokens,
   statement->s_type = S_NONE;
   AssignmentStatement assign;
 
-  assign.identifier = expect_next(T_IDENTIFIER, tokens, idx);
-  if (assign.identifier == NULL) {
+  const Token *ident_tok = expect_next(T_IDENTIFIER, tokens, idx);
+  if (ident_tok == NULL) {
     fprintf(stderr, "Failed to read identifier for assignment statement\n");
     return 1;
   }
 
-  const Identifier *identifier = get_identifier(identifiers, assign.identifier);
-  if (identifier == NULL) {
-    fprintf(stderr, "Undefined variable in assignment statement: %s\n", assign.identifier->item);
+  assign.identifier = get_identifier(identifiers, ident_tok);
+  if (assign.identifier == NULL) {
+    fprintf(stderr, "Undefined variable in assignment statement: %s\n", assign.identifier->name);
     return 1;
   }
 
-  if (!identifier->variable) {
+  if (!assign.identifier->variable) {
     fprintf(stderr, "Unable to assign to a constant\n");
     return 1;
   }
@@ -411,11 +405,12 @@ unsigned char parse_function(Function *function, const Tokens *tokens, size_t *i
     return 1;
   }
 
-  function->name = expect_next(T_IDENTIFIER, tokens, idx);
-  if (function->name == NULL) {
+  const Token *ident_tok = expect_next(T_IDENTIFIER, tokens, idx);
+  if (ident_tok == NULL) {
     fprintf(stderr, "Failed to get identifier for function\n");
     return 1;
   }
+  function->name = ident_tok->item;
 
   if (expect_next(T_LEFT_PAREN, tokens, idx) == NULL) {
     fprintf(stderr, "Expected opening parenthesis in function\n");
