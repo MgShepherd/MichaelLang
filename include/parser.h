@@ -51,9 +51,6 @@ const char *s_type_to_string(StatementType s);
 const char *e_type_to_string(ExpressionType e);
 const char *d_type_to_string(DataType e);
 
-// TODO: A lot of the statements use tokens currently which don't always fit that well for what we need, is there a
-// better representation
-
 typedef struct {
   char *name;
   DataType d_type;
@@ -98,16 +95,12 @@ typedef struct {
 } Statements;
 
 typedef struct {
-  const Token *identifier;
-  DataType data_type;
+  const Identifier *identifier;
   Expression expr;
-  // TODO: The variable boolean is duplicated in both the statement and the variable itself, is there a way to avoid
-  // this - potentially need to change the identifier representation
-  bool variable;
 } DeclarationStatement;
 
 typedef struct {
-  const Token *identifier;
+  const Identifier *identifier;
   Expression expr;
 } AssignmentStatement;
 
@@ -117,7 +110,7 @@ typedef struct {
 
 // TODO: Functions eventually need to take parameters - for now always empty
 typedef struct {
-  const Token *name;
+  const char *name;
   DataType return_type;
   Statements statements;
   Identifiers identifiers;
@@ -129,7 +122,6 @@ typedef struct {
   size_t capacity;
 } Functions;
 
-// Create the Statement "tagged union" by attached the StatementUnion with an enum value
 typedef union {
   DeclarationStatement dec;
   ReturnStatement ret;
