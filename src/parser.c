@@ -48,6 +48,15 @@ unsigned char parse_function(Function *function, const Tokens *tokens, size_t *i
 unsigned char parse_dec_statement(Statement *statement, const Tokens *tokens, Identifiers *identifiers, size_t *idx);
 
 /*
+ * Will set the assign property of statement union for a valid assignment statement
+ * Will output result to statement parameter
+ * Will additionally update the idx pointer to point at the next statement if valid
+ * Will update the provided variables array to include newly declared variable
+ * Returns 0 on success, 1 on failure
+ */
+unsigned char parse_assign_statement(Statement *statement, const Tokens *tokens, Identifiers *identifiers, size_t *idx);
+
+/*
  * Will set the ret property of statement union for a valid return statement
  * Will output result to statement parameter
  * Will additionally update the idx pointer to point at the next statement if valid
@@ -93,9 +102,10 @@ const Token *expect_keyword(const char *keyword, const Tokens *tokens, size_t *i
 DataType tok_to_data_type(const Token *token);
 
 /*
- * Checks whether a provided token has a identifier in the identifiers list
+ * Checks whether an identifier exists for the provided token and will return it if it does
+ * Returns NULL if the identifier does not exist
  */
-bool identifier_exists(const Identifiers *identifiers, const Token *token);
+const Identifier *get_identifier(const Identifiers *identifiers, const Token *token);
 
 /*
  * Frees functions array as well as nested statement arrays
@@ -193,7 +203,15 @@ unsigned char parse_statements(Statements *statements, Identifiers *identifiers,
 
     switch (tokens->elements[*idx].t_type) {
     case T_IDENTIFIER:
-      result = parse_dec_statement(&statement, tokens, identifiers, idx);
+      if (tokens->count <= *idx + 1) {
+        fprintf(stderr, "Invalid tokens at end of input\n");
+        return result;
+      }
+      if (tokens->elements[*idx + 1].t_type == T_COLON) {
+        result = parse_dec_statement(&statement, tokens, identifiers, idx);
+      } else {
+        result = parse_assign_statement(&statement, tokens, identifiers, idx);
+      }
       break;
     case T_KEYWORD:
       result = parse_ret_statement(&statement, tokens, identifiers, idx);
@@ -277,6 +295,9 @@ unsigned char parse_dec_statement(Statement *statement, const Tokens *tokens, Id
   if (expect_keyword("var", tokens, idx) != NULL) {
     ident.variable = true;
     dec.variable = true;
+  } else {
+    ident.variable = false;
+    dec.variable = false;
   }
 
   const Token *next = expect_next(T_DATATYPE, tokens, idx);
@@ -313,6 +334,48 @@ unsigned char parse_dec_statement(Statement *statement, const Tokens *tokens, Id
   statement->s_type = S_DECLARATION;
   statement->s_union.dec = dec;
 
+  return 0;
+}
+
+unsigned char parse_assign_statement(Statement *statement, const Tokens *tokens, Identifiers *identifiers,
+                                     size_t *idx) {
+  statement->s_type = S_NONE;
+  AssignmentStatement assign;
+
+  assign.identifier = expect_next(T_IDENTIFIER, tokens, idx);
+  if (assign.identifier == NULL) {
+    fprintf(stderr, "Failed to read identifier for assignment statement\n");
+    return 1;
+  }
+
+  const Identifier *identifier = get_identifier(identifiers, assign.identifier);
+  if (identifier == NULL) {
+    fprintf(stderr, "Undefined variable in assignment statement: %s\n", assign.identifier->item);
+    return 1;
+  }
+
+  if (!identifier->variable) {
+    fprintf(stderr, "Unable to assign to a constant\n");
+    return 1;
+  }
+
+  if (expect_next(T_EQUALS, tokens, idx) == NULL) {
+    fprintf(stderr, "Failed to read equals for assignment statement\n");
+    return 1;
+  }
+
+  if (parse_expression(&assign.expr, tokens, identifiers, idx) != 0) {
+    fprintf(stderr, "Failed to parse expression for assignment statement\n");
+    return 1;
+  }
+
+  if (expect_next(T_SEMI, tokens, idx) == NULL) {
+    fprintf(stderr, "Failed to read semicolon for assignment statement\n");
+    return 1;
+  }
+
+  statement->s_type = S_ASSIGNMENT;
+  statement->s_union.assign = assign;
   return 0;
 }
 
@@ -501,7 +564,7 @@ unsigned char parse_terminal_expr(TerminalExpr *term, const Tokens *tokens, cons
   }
 
   if (next->t_type == T_IDENTIFIER) {
-    if (!identifier_exists(identifiers, next)) {
+    if (get_identifier(identifiers, next) == NULL) {
       fprintf(stderr, "Undefined variable: %s\n", next->item);
       return 1;
     }
@@ -527,11 +590,11 @@ DataType tok_to_data_type(const Token *token) {
   return D_NONE;
 }
 
-bool identifier_exists(const Identifiers *identifiers, const Token *token) {
+const Identifier *get_identifier(const Identifiers *identifiers, const Token *token) {
   for (size_t i = 0; i < identifiers->count; i++) {
     if (strcmp(identifiers->elements[i].name, token->item) == 0) {
-      return true;
+      return &identifiers->elements[i];
     }
   }
-  return false;
+  return NULL;
 }
