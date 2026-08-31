@@ -57,7 +57,8 @@ void build_return_statement(const IRState *state, const ReturnStatement *ret);
  */
 LLVMValueRef build_expression(const IRState *state, const Expression *expr);
 LLVMValueRef build_terminal_expr(const IRState *state, const TerminalExpr *term);
-LLVMValueRef build_arithmetic_expr(const IRState *state, const ArithmeticExpr *arith);
+LLVMValueRef build_compound_expr(const IRState *state, const CompoundExpr *comp);
+LLVMValueRef build_numerical_expr(const IRState *state, const NumericalExpr *num);
 
 unsigned char generate_object_file(const IRState *state, const char *file_name);
 
@@ -209,10 +210,10 @@ void build_assignment_statement(IRState *state, const AssignmentStatement *assig
 
 LLVMValueRef build_expression(const IRState *state, const Expression *expr) {
   switch (expr->e_type) {
-  case E_TERM:
-    return build_terminal_expr(state, &expr->e_union.terminal);
-  case E_ARITHMETIC:
-    return build_arithmetic_expr(state, &expr->e_union.arithmetic);
+  case E_TERMINAL:
+    return build_terminal_expr(state, &expr->e_union.term);
+  case E_COMPOUND:
+    return build_compound_expr(state, &expr->e_union.comp);
   default:
     abort();
     unreachable();
@@ -222,18 +223,28 @@ LLVMValueRef build_expression(const IRState *state, const Expression *expr) {
 LLVMValueRef build_terminal_expr(const IRState *state, const TerminalExpr *term) {
   assert(term != NULL);
 
+  switch (term->te_type) {
+  case TE_NUMERICAL:
+    return build_numerical_expr(state, &term->t_union.num);
+  default:
+    fprintf(stderr, "Unexpected terminal expression type\n");
+    return NULL;
+  }
+}
+
+LLVMValueRef build_numerical_expr(const IRState *state, const NumericalExpr *num) {
   // TODO: Currently we only support integers as numeric literals, we should support floats etc in future
   LLVMValueRef processed;
-  switch (term->tok->t_type) {
+  switch (num->tok->t_type) {
   case T_NUMERIC_LIT:
     // TODO: Need to work out the literal type dynamically, rather than hardcoding to int
     LLVMTypeRef lit_type = LLVMInt32TypeInContext(state->context);
 
     // TODO: Need to handle the case of 0 being returned from strtoll with errno set - this happens for invalid
     // conversion - This check should be moved to parser as part of type checking
-    long long int_val = strtoll(term->tok->item, NULL, INT_BASE);
+    long long int_val = strtoll(num->tok->item, NULL, INT_BASE);
     if (int_val == LLONG_MIN || int_val == LLONG_MAX) {
-      fprintf(stderr, "Failed to convert return value into integer: %s\n", term->tok->item);
+      fprintf(stderr, "Failed to convert return value into integer: %s\n", num->tok->item);
       return NULL;
     }
 
@@ -241,36 +252,36 @@ LLVMValueRef build_terminal_expr(const IRState *state, const TerminalExpr *term)
     break;
   case T_IDENTIFIER:
     const LLVMTypeRef var_type = LLVMInt32TypeInContext(state->context);
-    const LLVMValueRef value_ref = load_identifier(&state->values, term->tok->item);
+    const LLVMValueRef value_ref = load_identifier(&state->values, num->tok->item);
     assert(value_ref != NULL);
 
-    processed = LLVMBuildLoad2(state->builder, var_type, value_ref, term->tok->item);
+    processed = LLVMBuildLoad2(state->builder, var_type, value_ref, num->tok->item);
     break;
   default:
     abort();
     unreachable();
   }
 
-  if (term->sign == SIGN_NEGATIVE) {
-    return LLVMBuildNeg(state->builder, processed, term->tok->item);
+  if (num->sign == SIGN_NEGATIVE) {
+    return LLVMBuildNeg(state->builder, processed, num->tok->item);
   }
 
   return processed;
 }
 
-LLVMValueRef build_arithmetic_expr(const IRState *state, const ArithmeticExpr *arith) {
-  assert(arith != NULL && arith->op->t_type == T_ARITHMETIC);
+LLVMValueRef build_compound_expr(const IRState *state, const CompoundExpr *comp) {
+  assert(comp != NULL && comp->op->t_type == T_ARITHMETIC);
 
-  LLVMValueRef lhs = build_terminal_expr(state, &arith->lhs);
+  LLVMValueRef lhs = build_terminal_expr(state, &comp->lhs);
   assert(lhs != NULL);
-  LLVMValueRef rhs = build_expression(state, arith->rhs);
+  LLVMValueRef rhs = build_expression(state, comp->rhs);
   assert(rhs != NULL);
 
-  switch (arith->op->item[0]) {
+  switch (comp->op->item[0]) {
   case '+':
-    return LLVMBuildAdd(state->builder, lhs, rhs, arith->lhs.tok->item);
+    return LLVMBuildAdd(state->builder, lhs, rhs, comp->op->item);
   case '-':
-    return LLVMBuildSub(state->builder, lhs, rhs, arith->lhs.tok->item);
+    return LLVMBuildSub(state->builder, lhs, rhs, comp->op->item);
   default:
     abort();
     unreachable();

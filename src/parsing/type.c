@@ -23,6 +23,14 @@ const char *e_type_to_string(ExpressionType e) {
   }
 }
 
+const char *te_type_to_string(TerminalExprType e) {
+  switch (e) {
+    TERM_EXPR_TYPES
+  default:
+    return "unknown";
+  }
+}
+
 const char *d_type_to_string(DataType e) {
   switch (e) {
     DATA_TYPES
