@@ -18,6 +18,8 @@
   X(T_COLON)                                                                                                           \
   X(T_ARITHMETIC)                                                                                                      \
   X(T_DATATYPE)                                                                                                        \
+  X(T_TRUE)                                                                                                            \
+  X(T_FALSE)                                                                                                           \
   X(T_SEMI)
 
 #define X(N) N,

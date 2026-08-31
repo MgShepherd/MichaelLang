@@ -141,10 +141,13 @@ unsigned char process_as_keyword(Token *tok, const char *input, size_t *idx) {
   return CONTINUE_PROCESSING_STATUS;
 }
 
+// TODO: Distinguish keyword from symbol, what does this mean other than ending in space
+// A lot of these symbols do not need an associated value, is there a way to fix this
 unsigned char process_as_symbol(Token *tok, const char *input, size_t *idx) {
   static const TokenMapping SYMBOL_MAPPINGS[] = {
       {.key = "(", .value = T_LEFT_PAREN},  {.key = ")", .value = T_RIGHT_PAREN}, {.key = "{", .value = T_LEFT_CURLY},
       {.key = "}", .value = T_RIGHT_CURLY}, {.key = "->", .value = T_ARROW},      {.key = "i32", .value = T_DATATYPE},
+      {.key = "bool", .value = T_DATATYPE}, {.key = "true", .value = T_TRUE},     {.key = "false", .value = T_FALSE},
       {.key = ":", .value = T_COLON},       {.key = "=", .value = T_EQUALS},      {.key = ";", .value = T_SEMI},
       {.key = "+", .value = T_ARITHMETIC},  {.key = "-", .value = T_ARITHMETIC},
   };
