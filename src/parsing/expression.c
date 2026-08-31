@@ -1,4 +1,5 @@
 #include "parsing/expression.h"
+#include "lexer.h"
 #include "parsing/identifier.h"
 #include "parsing/type.h"
 
@@ -10,6 +11,8 @@ unsigned char parse_terminal_expr(TerminalExpr *term, const Tokens *tokens, cons
                                   size_t *idx);
 unsigned char parse_numerical_expr(NumericalExpr *num, const Tokens *tokens, const Identifiers *identifiers,
                                    size_t *idx);
+unsigned char parse_boolean_expr(BooleanExpr *boolean, const Tokens *tokens, const Identifiers *identifiers,
+                                 size_t *idx);
 
 unsigned char parse_expression(Expression *expression, const Tokens *tokens, const Identifiers *identifiers,
                                size_t *idx) {
@@ -23,17 +26,16 @@ unsigned char parse_expression(Expression *expression, const Tokens *tokens, con
     return 1;
   }
 
-  if (*idx >= tokens->count || tokens->elements[*idx].t_type != T_ARITHMETIC) {
+  if (*idx >= tokens->count || tokens->elements[*idx].t_type != T_ARITHMETIC || term.te_type != TE_NUMERICAL) {
     expression->e_type = E_TERMINAL;
     expression->e_union.term = term;
     return 0;
   }
 
-  // TODO: When support boolean expressions, check the type of lhs matches whats needed for operator
   const Token *op = &tokens->elements[(*idx)++];
   assert(op->t_type == T_ARITHMETIC);
 
-  // TODO: Check that the rhs expression has same type as the lhs
+  // NEXT TODO: Type checking that all parts of the compound expression are of the same type
   Expression rhs;
   if (parse_expression(&rhs, tokens, identifiers, idx) != 0) {
     return 1;
@@ -67,15 +69,24 @@ void expression_free(Expression *expression) {
   }
 }
 
+// TODO: Reduce some of the duplication in the different switch branches of this function
 unsigned char parse_terminal_expr(TerminalExpr *term, const Tokens *tokens, const Identifiers *identifiers,
                                   size_t *idx) {
   switch (tokens->elements[*idx].t_type) {
+  case T_TRUE:
+  case T_FALSE:
+    BooleanExpr boolean;
+    if (parse_boolean_expr(&boolean, tokens, identifiers, idx) != 0) {
+      return 1;
+    }
+    term->te_type = TE_BOOLEAN;
+    term->t_union.boolean = boolean;
+    break;
   case T_ARITHMETIC:
   case T_NUMERIC_LIT:
     NumericalExpr num;
-    const unsigned char result = parse_numerical_expr(&num, tokens, identifiers, idx);
-    if (result != 0) {
-      return result;
+    if (parse_numerical_expr(&num, tokens, identifiers, idx) != 0) {
+      return 1;
     }
     term->te_type = TE_NUMERICAL;
     term->t_union.num = num;
@@ -90,19 +101,28 @@ unsigned char parse_terminal_expr(TerminalExpr *term, const Tokens *tokens, cons
     switch (ident->d_type) {
     case D_I32:
       NumericalExpr num;
-      const unsigned char result = parse_numerical_expr(&num, tokens, identifiers, idx);
-      if (result != 0) {
-        return result;
+      if (parse_numerical_expr(&num, tokens, identifiers, idx) != 0) {
+        return 1;
       }
       term->te_type = TE_NUMERICAL;
       term->t_union.num = num;
-      return result;
+      break;
+    case D_BOOL:
+      BooleanExpr boolean;
+      if (parse_boolean_expr(&boolean, tokens, identifiers, idx) != 0) {
+        return 1;
+      }
+      term->te_type = TE_BOOLEAN;
+      term->t_union.boolean = boolean;
+      break;
     default:
       fprintf(stderr, "Unexpected variable type: %s\n", d_type_to_string(ident->d_type));
       return 1;
     }
+    break;
   default:
-    fprintf(stderr, "Invalid token type for beginning of expression\n");
+    fprintf(stderr, "Invalid token type for beginning of expression: %s\n",
+            t_type_to_string(tokens->elements[*idx].t_type));
     return 1;
   }
 
@@ -129,11 +149,16 @@ unsigned char parse_numerical_expr(NumericalExpr *num, const Tokens *tokens, con
   }
 
   if (next->t_type == T_IDENTIFIER) {
-    if (get_identifier(identifiers, next) == NULL) {
+    const Identifier *ident = get_identifier(identifiers, next);
+    if (ident == NULL) {
       fprintf(stderr, "Undefined variable: %s\n", next->item);
       return 1;
     }
 
+    if (ident->d_type != D_I32) {
+      fprintf(stderr, "Invalid variable type for boolean expression, got: %s\n", d_type_to_string(ident->d_type));
+      return 1;
+    }
     num->tok = next;
     return 0;
   }
@@ -144,5 +169,34 @@ unsigned char parse_numerical_expr(NumericalExpr *num, const Tokens *tokens, con
   }
   num->tok = next;
 
+  return 0;
+}
+
+unsigned char parse_boolean_expr(BooleanExpr *boolean, const Tokens *tokens, const Identifiers *identifiers,
+                                 size_t *idx) {
+  const Token *next = &tokens->elements[*idx];
+  switch (next->t_type) {
+  case T_TRUE:
+  case T_FALSE:
+    break;
+  case T_IDENTIFIER:
+    const Identifier *ident = get_identifier(identifiers, next);
+    if (ident == NULL) {
+      fprintf(stderr, "Undefined variable: %s\n", next->item);
+      return 1;
+    }
+
+    if (ident->d_type != D_BOOL) {
+      fprintf(stderr, "Invalid variable type for boolean expression, got: %s\n", d_type_to_string(ident->d_type));
+      return 1;
+    }
+    break;
+  default:
+    abort();
+    return 1;
+  }
+
+  boolean->tok = next;
+  *idx += 1;
   return 0;
 }

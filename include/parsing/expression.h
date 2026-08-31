@@ -13,8 +13,13 @@ typedef struct {
   DataType d_type;
 } NumericalExpr;
 
+typedef struct {
+  const Token *tok;
+} BooleanExpr;
+
 typedef union {
   NumericalExpr num;
+  BooleanExpr boolean;
 } TerminalExprUnion;
 
 typedef struct {

@@ -16,10 +16,12 @@
 
 #define TERM_EXPR_TYPES                                                                                                \
   X(TE_NONE)                                                                                                           \
-  X(TE_NUMERICAL)
+  X(TE_NUMERICAL)                                                                                                      \
+  X(TE_BOOLEAN)
 
 #define DATA_TYPES                                                                                                     \
   X(D_NONE)                                                                                                            \
+  X(D_BOOL)                                                                                                            \
   X(D_I32)
 
 #define SIGN                                                                                                           \
