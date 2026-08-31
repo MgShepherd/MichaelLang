@@ -1,7 +1,7 @@
 #ifndef _LLVM_H_
 #define _LLVM_H_
 
-#include "parser.h"
+#include "parsing/program.h"
 
 /*
  * program_to_object_file takes a built program AST and will generate a native obj file via LLVM

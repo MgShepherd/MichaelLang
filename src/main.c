@@ -2,7 +2,7 @@
 #include "dynamic_array.h"
 #include "lexer.h"
 #include "llvm.h"
-#include "parser.h"
+#include "parsing/program.h"
 #include "utils.h"
 
 #include <stdio.h>
@@ -48,7 +48,7 @@ int main(int argc, char **argv) {
     goto cleanup;
   }
 
-  if (parse_tokens(&program, &tokens) != 0) {
+  if (parse_program(&program, &tokens) != 0) {
     fprintf(stderr, "Failed to convert processed tokens into a program\n");
     response_code = 1;
     goto cleanup;

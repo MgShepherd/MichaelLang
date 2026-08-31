@@ -1,7 +1,6 @@
 #include "llvm.h"
 #include "dynamic_array.h"
 #include "lexer.h"
-#include "parser.h"
 #include "llvm-c/Types.h"
 
 #include <assert.h>
