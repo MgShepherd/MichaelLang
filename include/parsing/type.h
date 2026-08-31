@@ -11,8 +11,12 @@
 
 #define EXPRESSION_TYPES                                                                                               \
   X(E_NONE)                                                                                                            \
-  X(E_ARITHMETIC)                                                                                                      \
-  X(E_TERM)
+  X(E_COMPOUND)                                                                                                        \
+  X(E_TERMINAL)
+
+#define TERM_EXPR_TYPES                                                                                                \
+  X(TE_NONE)                                                                                                           \
+  X(TE_NUMERICAL)
 
 #define DATA_TYPES                                                                                                     \
   X(D_NONE)                                                                                                            \
@@ -25,12 +29,14 @@
 #define X(N) N,
 typedef enum { STATEMENT_TYPES } StatementType;
 typedef enum { EXPRESSION_TYPES } ExpressionType;
+typedef enum { TERM_EXPR_TYPES } TerminalExprType;
 typedef enum { DATA_TYPES } DataType;
 typedef enum { SIGN } Sign;
 #undef X
 
 const char *s_type_to_string(StatementType s);
 const char *e_type_to_string(ExpressionType e);
+const char *te_type_to_string(TerminalExprType te);
 const char *d_type_to_string(DataType e);
 
 /*

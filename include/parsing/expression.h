@@ -10,17 +10,27 @@ typedef struct Expression Expression;
 typedef struct {
   const Token *tok;
   Sign sign;
+  DataType d_type;
+} NumericalExpr;
+
+typedef union {
+  NumericalExpr num;
+} TerminalExprUnion;
+
+typedef struct {
+  TerminalExprUnion t_union;
+  TerminalExprType te_type;
 } TerminalExpr;
 
 typedef struct {
   TerminalExpr lhs;
   const Token *op;
   Expression *rhs;
-} ArithmeticExpr;
+} CompoundExpr;
 
 typedef union {
-  TerminalExpr terminal;
-  ArithmeticExpr arithmetic;
+  TerminalExpr term;
+  CompoundExpr comp;
 } ExpressionUnion;
 
 struct Expression {
