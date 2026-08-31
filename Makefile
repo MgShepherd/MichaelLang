@@ -13,7 +13,8 @@ LD_FLAGS := $(LLVM_LD_FLAGS)
 
 TARGET := $(BUILD_DIR)/Compiler
 
-SRCS := $(wildcard $(SRC_DIR)/*.c)
+rwildcard = $(foreach d,$(wildcard $1/*),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
+SRCS := $(call rwildcard,$(SRC_DIR),*.c)
 OBJS := $(SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)
 
 .PHONY: all clean
@@ -23,14 +24,12 @@ all: $(TARGET)
 $(TARGET): $(OBJS)
 	$(CC) $(LD_FLAGS) $(OBJS) -o $@ $(LIBS)
 
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD_DIR)/%.o: $(TEST_DIR)/%.c | $(BUILD_DIR)
+$(BUILD_DIR)/%.o: $(TEST_DIR)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
-
-$(BUILD_DIR):
-	mkdir -p $(BUILD_DIR)
 
 run: $(TARGET)
 	$(TARGET)
