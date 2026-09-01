@@ -39,14 +39,13 @@ const char *d_type_to_string(DataType e) {
   }
 }
 
-// TODO: Revisit this, is there a better way for dealing with data types
-DataType tok_to_data_type(const Token *token) {
-  assert(token->t_type == T_DATATYPE);
-  if (strcmp("i32", token->item) == 0) {
+DataType tok_to_data_type(TokenType t_type) {
+  switch (t_type) {
+  case T_I32:
     return D_I32;
-  }
-  if (strcmp("bool", token->item) == 0) {
+  case T_BOOL:
     return D_BOOL;
+  default:
+    return D_NONE;
   }
-  return D_NONE;
 }

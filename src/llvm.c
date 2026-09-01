@@ -135,7 +135,9 @@ unsigned char build_function(IRState *state, const Function *func) {
   return 0;
 }
 
-// TODO: Question: We are calling get_type a lot which may be inefficient, can we maybe use some kind of type map
+// TODO: Question: We are calling get_type a lot comp->op->item[0]which may be inefficient, can we maybe use some kind
+// of type map
+// TODO: This function is not getting used everywhere it should be - revist
 LLVMTypeRef get_type(const IRState *state, DataType d_type) {
   assert(state != NULL);
 
@@ -231,8 +233,7 @@ LLVMValueRef build_terminal_expr(const IRState *state, const TerminalExpr *term)
   case TE_BOOLEAN:
     return build_boolean_expr(state, &term->t_union.boolean);
   default:
-    fprintf(stderr, "Unexpected terminal expression type\n");
-    return NULL;
+    abort();
   }
 }
 
@@ -291,21 +292,20 @@ LLVMValueRef build_boolean_expr(const IRState *state, const BooleanExpr *boolean
 }
 
 LLVMValueRef build_compound_expr(const IRState *state, const CompoundExpr *comp) {
-  assert(comp != NULL && comp->op->t_type == T_ARITHMETIC);
+  assert(comp != NULL);
 
   LLVMValueRef lhs = build_terminal_expr(state, &comp->lhs);
   assert(lhs != NULL);
   LLVMValueRef rhs = build_expression(state, comp->rhs);
   assert(rhs != NULL);
 
-  switch (comp->op->item[0]) {
-  case '+':
-    return LLVMBuildAdd(state->builder, lhs, rhs, comp->op->item);
-  case '-':
-    return LLVMBuildSub(state->builder, lhs, rhs, comp->op->item);
+  switch (comp->op->t_type) {
+  case T_PLUS:
+    return LLVMBuildAdd(state->builder, lhs, rhs, "ADD");
+  case T_MINUS:
+    return LLVMBuildSub(state->builder, lhs, rhs, "SUB");
   default:
     abort();
-    unreachable();
   }
 }
 

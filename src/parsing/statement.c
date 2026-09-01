@@ -29,7 +29,7 @@ unsigned char parse_statements(Statements *statements, Identifiers *identifiers,
         result = parse_assign_statement(&statement, tokens, identifiers, idx);
       }
       break;
-    case T_KEYWORD:
+    case T_RETURN:
       result = parse_ret_statement(&statement, tokens, identifiers, idx);
       break;
     default:
@@ -89,15 +89,9 @@ unsigned char parse_dec_statement(Statement *statement, const Tokens *tokens, Id
     return 1;
   }
 
-  ident.variable = expect_keyword("var", tokens, idx) != NULL;
+  ident.variable = expect_next(T_VAR, tokens, idx) != NULL;
 
-  const Token *next = expect_next(T_DATATYPE, tokens, idx);
-  if (next == NULL) {
-    fprintf(stderr, "Failed to read data type for declaration statement\n");
-    return 1;
-  }
-
-  ident.d_type = tok_to_data_type(next);
+  ident.d_type = tok_to_data_type(tokens->elements[(*idx)++].t_type);
   if (ident.d_type == D_NONE) {
     fprintf(stderr, "Failed to parse keyword into datatype\n");
     return 1;
@@ -174,7 +168,7 @@ unsigned char parse_ret_statement(Statement *statement, const Tokens *tokens, co
   statement->s_type = S_NONE;
   ReturnStatement ret;
 
-  if (expect_keyword("return", tokens, idx) == NULL) {
+  if (expect_next(T_RETURN, tokens, idx) == NULL) {
     fprintf(stderr, "Expected keyword token for return statement\n");
     return 1;
   }
