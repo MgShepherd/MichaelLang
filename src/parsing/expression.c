@@ -14,6 +14,8 @@ unsigned char parse_numerical_expr(NumericalExpr *num, const Tokens *tokens, con
 unsigned char parse_boolean_expr(BooleanExpr *boolean, const Tokens *tokens, const Identifiers *identifiers,
                                  size_t *idx);
 
+bool is_arithmetic_tok(TokenType t_type);
+
 unsigned char parse_expression(Expression *expression, const Tokens *tokens, const Identifiers *identifiers,
                                size_t *idx) {
   if (*idx >= tokens->count) {
@@ -26,16 +28,16 @@ unsigned char parse_expression(Expression *expression, const Tokens *tokens, con
     return 1;
   }
 
-  if (*idx >= tokens->count || tokens->elements[*idx].t_type != T_ARITHMETIC || term.te_type != TE_NUMERICAL) {
+  if (*idx >= tokens->count || !is_arithmetic_tok(tokens->elements[*idx].t_type) || term.te_type != TE_NUMERICAL) {
     expression->e_type = E_TERMINAL;
     expression->e_union.term = term;
     return 0;
   }
 
   const Token *op = &tokens->elements[(*idx)++];
-  assert(op->t_type == T_ARITHMETIC);
+  assert(is_arithmetic_tok(op->t_type));
 
-  // NEXT TODO: Type checking that all parts of the compound expression are of the same type
+  // TODO: Type checking that all parts of the compound expression are of the same type
   Expression rhs;
   if (parse_expression(&rhs, tokens, identifiers, idx) != 0) {
     return 1;
@@ -82,7 +84,8 @@ unsigned char parse_terminal_expr(TerminalExpr *term, const Tokens *tokens, cons
     term->te_type = TE_BOOLEAN;
     term->t_union.boolean = boolean;
     break;
-  case T_ARITHMETIC:
+  case T_PLUS:
+  case T_MINUS:
   case T_NUMERIC_LIT:
     NumericalExpr num;
     if (parse_numerical_expr(&num, tokens, identifiers, idx) != 0) {
@@ -133,16 +136,11 @@ unsigned char parse_numerical_expr(NumericalExpr *num, const Tokens *tokens, con
                                    size_t *idx) {
   const Token *next = &tokens->elements[(*idx)++];
 
-  if (next->t_type == T_ARITHMETIC) {
-    if (strcmp(next->item, "+") == 0) {
-      num->sign = SIGN_POSTIIVE;
-    } else if (strcmp(next->item, "-") == 0) {
-      num->sign = SIGN_NEGATIVE;
-    } else {
-      fprintf(stderr, "Invalid sign for terminal expression: %s\n", next->item);
-      return 1;
-    }
-
+  if (next->t_type == T_PLUS) {
+    num->sign = SIGN_POSTIIVE;
+    next = &tokens->elements[(*idx)++];
+  } else if (next->t_type == T_MINUS) {
+    num->sign = SIGN_NEGATIVE;
     next = &tokens->elements[(*idx)++];
   } else {
     num->sign = SIGN_POSTIIVE;
@@ -200,3 +198,5 @@ unsigned char parse_boolean_expr(BooleanExpr *boolean, const Tokens *tokens, con
   *idx += 1;
   return 0;
 }
+
+bool is_arithmetic_tok(TokenType t_type) { return t_type == T_PLUS || t_type == T_MINUS; }

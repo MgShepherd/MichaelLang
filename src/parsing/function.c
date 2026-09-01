@@ -13,8 +13,8 @@ unsigned char parse_function(Function *function, const Tokens *tokens, size_t *i
 unsigned char parse_functions(Functions *functions, const Tokens *tokens) {
   size_t idx = 0;
   while (idx < tokens->count) {
-    if (tokens->elements[idx].t_type != T_KEYWORD) {
-      fprintf(stderr, "Expected %s token for function begin, got %s\n", t_type_to_string(T_KEYWORD),
+    if (tokens->elements[idx].t_type != T_FUNCTION) {
+      fprintf(stderr, "Expected func token for function begin, got %s\n",
               t_type_to_string(tokens->elements[idx].t_type));
       return 1;
     }
@@ -40,7 +40,7 @@ void functions_free(Functions *functions) {
 }
 
 unsigned char parse_function(Function *function, const Tokens *tokens, size_t *idx) {
-  if (expect_keyword("func", tokens, idx) == NULL) {
+  if (expect_next(T_FUNCTION, tokens, idx) == NULL) {
     fprintf(stderr, "Expected keyword token for function\n");
     return 1;
   }
@@ -67,13 +67,7 @@ unsigned char parse_function(Function *function, const Tokens *tokens, size_t *i
     return 1;
   }
 
-  const Token *next = expect_next(T_DATATYPE, tokens, idx);
-  if (next == NULL) {
-    fprintf(stderr, "Expected return type for function\n");
-    return 1;
-  }
-
-  function->return_type = tok_to_data_type(next);
+  function->return_type = tok_to_data_type(tokens->elements[(*idx)++].t_type);
   if (function->return_type == D_NONE) {
     fprintf(stderr, "Expected return type for function to be valid data type\n");
     return 1;

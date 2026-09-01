@@ -6,9 +6,15 @@
 // Using X-Macros to create TokenType enum with a generated t_type_to_string method
 #define TOKEN_TYPES                                                                                                    \
   X(T_NONE)                                                                                                            \
+  X(T_FUNCTION)                                                                                                        \
+  X(T_VAR)                                                                                                             \
+  X(T_RETURN)                                                                                                          \
+  X(T_I32)                                                                                                             \
+  X(T_BOOL)                                                                                                            \
+  X(T_TRUE)                                                                                                            \
+  X(T_FALSE)                                                                                                           \
   X(T_IDENTIFIER)                                                                                                      \
   X(T_NUMERIC_LIT)                                                                                                     \
-  X(T_KEYWORD)                                                                                                         \
   X(T_ARROW)                                                                                                           \
   X(T_LEFT_PAREN)                                                                                                      \
   X(T_RIGHT_PAREN)                                                                                                     \
@@ -16,10 +22,8 @@
   X(T_RIGHT_CURLY)                                                                                                     \
   X(T_EQUALS)                                                                                                          \
   X(T_COLON)                                                                                                           \
-  X(T_ARITHMETIC)                                                                                                      \
-  X(T_DATATYPE)                                                                                                        \
-  X(T_TRUE)                                                                                                            \
-  X(T_FALSE)                                                                                                           \
+  X(T_PLUS)                                                                                                            \
+  X(T_MINUS)                                                                                                           \
   X(T_SEMI)
 
 #define X(N) N,

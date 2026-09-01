@@ -42,9 +42,9 @@ const char *te_type_to_string(TerminalExprType te);
 const char *d_type_to_string(DataType e);
 
 /*
- * Converts a provided token into the matching datatype
- * Will return D_NONE if unable to convert token to datatype
+ * Converts a provided token type into the matching datatype
+ * Will return D_NONE if invalid datatype
  */
-DataType tok_to_data_type(const Token *token);
+DataType tok_to_data_type(TokenType t_type);
 
 #endif // _PARSING_TYPE_H_
