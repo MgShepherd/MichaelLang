@@ -6,7 +6,6 @@
 #include <stdio.h>
 
 #define FUNCTION_STATEMENTS_LEN_ESTIMATE 10
-#define FUNCTION_VARIABLES_LEN_ESTIMATE 10
 
 unsigned char parse_function(Function *function, const Tokens *tokens, size_t *idx);
 
@@ -34,7 +33,6 @@ unsigned char parse_functions(Functions *functions, const Tokens *tokens) {
 void functions_free(Functions *functions) {
   for (size_t i = 0; i < functions->count; i++) {
     statements_free(&functions->elements[i].statements);
-    dyn_array_free(&functions->elements[i].identifiers);
   }
   dyn_array_free(functions);
 }
@@ -81,22 +79,16 @@ unsigned char parse_function(Function *function, const Tokens *tokens, size_t *i
   Statements statements;
   dyn_array_init(&statements, sizeof(Statement), FUNCTION_STATEMENTS_LEN_ESTIMATE);
 
-  Identifiers identifiers;
-  dyn_array_init(&identifiers, sizeof(Identifier), FUNCTION_VARIABLES_LEN_ESTIMATE);
-
-  if (parse_statements(&statements, &identifiers, tokens, idx, T_RIGHT_CURLY) != 0) {
+  if (parse_statements(&statements, tokens, idx, T_RIGHT_CURLY) != 0) {
     fprintf(stderr, "Failed to process function body\n");
     dyn_array_free(&statements);
-    dyn_array_free(&identifiers);
     return 1;
   }
   function->statements = statements;
-  function->identifiers = identifiers;
 
   if (expect_next(T_RIGHT_CURLY, tokens, idx) == NULL) {
     fprintf(stderr, "Expected closing curly brace after function body\n");
     dyn_array_free(&statements);
-    dyn_array_free(&identifiers);
     return 1;
   }
 

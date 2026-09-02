@@ -1,7 +1,6 @@
 #ifndef _PARSING_FUNCTION_H_
 #define _PARSING_FUNCTION_H_
 
-#include "parsing/identifier.h"
 #include "parsing/statement.h"
 #include "parsing/type.h"
 
@@ -9,7 +8,6 @@ typedef struct {
   const char *name;
   DataType return_type;
   Statements statements;
-  Identifiers identifiers;
 } Function;
 
 typedef struct {
