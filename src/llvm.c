@@ -20,7 +20,7 @@
 #define ARRAY_REALLOC_FACTOR 2
 
 typedef struct {
-  char *name;
+  const char *name;
   LLVMValueRef ptr;
   bool variable;
 } ValueRef;
@@ -58,8 +58,6 @@ void build_return_statement(const IRState *state, const ReturnStatement *ret);
 LLVMValueRef build_expression(const IRState *state, const Expression *expr);
 LLVMValueRef build_terminal_expr(const IRState *state, const TerminalExpr *term);
 LLVMValueRef build_compound_expr(const IRState *state, const CompoundExpr *comp);
-LLVMValueRef build_numerical_expr(const IRState *state, const NumericalExpr *num);
-LLVMValueRef build_boolean_expr(const IRState *state, const BooleanExpr *boolean);
 
 unsigned char generate_object_file(const IRState *state, const char *file_name);
 
@@ -185,16 +183,16 @@ unsigned char build_declaration_statement(IRState *state, const DeclarationState
   // TODO: Type is currently hardcoded to int32 - should be worked out based on the declaration statement
   // TODO: Fix return error when trying to use boolean value due to type mismatch
   LLVMTypeRef var_type = LLVMInt32TypeInContext(state->context);
-  LLVMValueRef var_ptr = LLVMBuildAlloca(state->builder, var_type, dec->identifier->name);
+  LLVMValueRef var_ptr = LLVMBuildAlloca(state->builder, var_type, dec->lhs);
 
   LLVMValueRef expr_output = build_expression(state, &dec->expr);
   assert(expr_output != NULL);
   LLVMBuildStore(state->builder, expr_output, var_ptr);
 
   ValueRef var = {
-      .name = dec->identifier->name,
+      .name = dec->lhs,
       .ptr = var_ptr,
-      .variable = dec->identifier->variable,
+      .variable = dec->variable,
   };
   dyn_array_insert(&state->values, var);
 
@@ -206,7 +204,7 @@ void build_assignment_statement(IRState *state, const AssignmentStatement *assig
 
   LLVMValueRef expr_output = build_expression(state, &assign->expr);
   assert(expr_output != NULL);
-  LLVMValueRef assign_var = load_identifier(&state->values, assign->identifier->name);
+  LLVMValueRef assign_var = load_identifier(&state->values, assign->lhs);
   assert(assign_var != NULL);
 
   LLVMBuildStore(state->builder, expr_output, assign_var);
@@ -224,20 +222,8 @@ LLVMValueRef build_expression(const IRState *state, const Expression *expr) {
   }
 }
 
-LLVMValueRef build_terminal_expr(const IRState *state, const TerminalExpr *term) {
-  assert(term != NULL);
-
-  switch (term->te_type) {
-  case TE_NUMERICAL:
-    return build_numerical_expr(state, &term->t_union.num);
-  case TE_BOOLEAN:
-    return build_boolean_expr(state, &term->t_union.boolean);
-  default:
-    abort();
-  }
-}
-
-LLVMValueRef build_numerical_expr(const IRState *state, const NumericalExpr *num) {
+// TODO: Re-add support for boolean terminals - add back once we have semantic analysis step
+LLVMValueRef build_terminal_expr(const IRState *state, const TerminalExpr *num) {
   // TODO: Currently we only support integers as numeric literals, we should support floats etc in future
   LLVMValueRef processed;
   switch (num->tok->t_type) {
@@ -266,29 +252,11 @@ LLVMValueRef build_numerical_expr(const IRState *state, const NumericalExpr *num
     abort();
   }
 
-  if (num->sign == SIGN_NEGATIVE) {
+  if (num->sign != NULL && num->sign->t_type == T_MINUS) {
     return LLVMBuildNeg(state->builder, processed, num->tok->item);
   }
 
   return processed;
-}
-
-LLVMValueRef build_boolean_expr(const IRState *state, const BooleanExpr *boolean) {
-  assert(boolean->tok->t_type == T_TRUE || boolean->tok->t_type == T_FALSE || boolean->tok->t_type == T_IDENTIFIER);
-  const LLVMTypeRef i1_type = LLVMInt1TypeInContext(state->context);
-
-  if (boolean->tok->t_type == T_IDENTIFIER) {
-    const LLVMValueRef value_ref = load_identifier(&state->values, boolean->tok->item);
-    assert(value_ref != NULL);
-    return LLVMBuildLoad2(state->builder, i1_type, value_ref, boolean->tok->item);
-  }
-
-  long long bool_val = 1;
-  if (boolean->tok->t_type == T_FALSE) {
-    bool_val = 0;
-  }
-
-  return LLVMConstInt(i1_type, bool_val, false);
 }
 
 LLVMValueRef build_compound_expr(const IRState *state, const CompoundExpr *comp) {
@@ -299,7 +267,7 @@ LLVMValueRef build_compound_expr(const IRState *state, const CompoundExpr *comp)
   LLVMValueRef rhs = build_expression(state, comp->rhs);
   assert(rhs != NULL);
 
-  switch (comp->op->t_type) {
+  switch (comp->op) {
   case T_PLUS:
     return LLVMBuildAdd(state->builder, lhs, rhs, "ADD");
   case T_MINUS:

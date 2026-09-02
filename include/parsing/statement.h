@@ -3,7 +3,6 @@
 
 #include "lexer.h"
 #include "parsing/expression.h"
-#include "parsing/identifier.h"
 #include <stdlib.h>
 
 typedef struct Statement Statement;
@@ -15,12 +14,14 @@ typedef struct {
 } Statements;
 
 typedef struct {
-  const Identifier *identifier;
+  const char *lhs;
+  bool variable;
+  DataType d_type;
   Expression expr;
 } DeclarationStatement;
 
 typedef struct {
-  const Identifier *identifier;
+  const char *lhs;
   Expression expr;
 } AssignmentStatement;
 
@@ -46,8 +47,7 @@ struct Statement {
  * allocated element array, with a count and capacity Will error if exit_token is not found before reaching the end of
  * the input Returns 0 on success, 1 if there was a failure
  */
-unsigned char parse_statements(Statements *statements, Identifiers *identifiers, const Tokens *tokens, size_t *idx,
-                               TokenType exit_token);
+unsigned char parse_statements(Statements *statements, const Tokens *tokens, size_t *idx, TokenType exit_token);
 
 /*
  * Frees statement array and all associated data
