@@ -3,6 +3,7 @@
 #include "lexer.h"
 #include "llvm.h"
 #include "parsing/program.h"
+#include "sema.h"
 #include "utils.h"
 
 #include <stdio.h>
@@ -19,6 +20,8 @@ int main(int argc, char **argv) {
   tokens.elements = NULL;
   Program program;
   program.functions.elements = NULL;
+  Identifiers identifiers;
+  identifiers.elements = NULL;
   char *file_name = NULL;
   char *obj_file_path = NULL;
   char *exe_file_path = NULL;
@@ -53,6 +56,13 @@ int main(int argc, char **argv) {
     response_code = 1;
     goto cleanup;
   }
+
+  if (analyse_program(&identifiers, &program) != 0) {
+    fprintf(stderr, "Failed to analyse program structure\n");
+    response_code = 1;
+    goto cleanup;
+  }
+  printf("Completed program analysis\n");
 
   file_name = file_name_from_path(args.filepath);
   if (file_name == NULL) {
@@ -109,6 +119,7 @@ cleanup:
     free(obj_file_path);
   if (file_name != NULL)
     free(file_name);
+  dyn_array_free(&identifiers);
   program_free(&program);
   dyn_array_free(&tokens);
   if (data != NULL)

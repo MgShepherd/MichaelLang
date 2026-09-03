@@ -1,0 +1,153 @@
+#include "sema.h"
+#include "dynamic_array.h"
+#include "lexer.h"
+#include "parsing/type.h"
+
+#include <stdio.h>
+#include <string.h>
+
+#define INVALID_PROGRAM_CODE 2
+#define NUM_VARIABLES_ESTIMATE 10
+
+unsigned char analyse_func(Identifiers *identifiers, const Function *func);
+
+unsigned char analyse_statement(Identifiers *identifiers, const Statement *statement, DataType func_type);
+unsigned char analyse_dec_statement(Identifiers *identifiers, const DeclarationStatement *dec);
+unsigned char analyse_assign_statement(Identifiers *identifiers, const AssignmentStatement *assign);
+unsigned char analyse_ret_statement(Identifiers *identifiers, const ReturnStatement *ret, DataType func_type);
+
+unsigned char analyse_expression(Identifiers *identifiers, const Expression *expr, DataType expr_type);
+unsigned char analyse_term_expression(Identifiers *identifiers, const TerminalExpr *term, DataType expr_type);
+unsigned char analyse_comp_expression(Identifiers *identifiers, const CompoundExpr *comp, DataType expr_type);
+
+const Identifier *get_identifier(const Identifiers *identifiers, const char *name);
+
+unsigned char analyse_program(Identifiers *identifiers, const Program *program) {
+  dyn_array_init(identifiers, sizeof(Identifier), NUM_VARIABLES_ESTIMATE);
+  assert(identifiers->elements != NULL);
+
+  unsigned char result = 0;
+  for (size_t i = 0; i < program->functions.count; i++) {
+    result = analyse_func(identifiers, &program->functions.elements[i]);
+    if (result != 0) {
+      return result;
+    }
+  }
+
+  return 0;
+}
+
+unsigned char analyse_func(Identifiers *identifiers, const Function *func) {
+  unsigned char result = 0;
+  for (size_t i = 0; i < func->statements.count; i++) {
+    result = analyse_statement(identifiers, &func->statements.elements[i], func->return_type);
+    if (result != 0) {
+      return result;
+    }
+  }
+  return 0;
+}
+
+unsigned char analyse_statement(Identifiers *identifiers, const Statement *statement, DataType func_type) {
+  switch (statement->s_type) {
+  case S_DECLARATION:
+    return analyse_dec_statement(identifiers, &statement->s_union.dec);
+  case S_ASSIGNMENT:
+    return analyse_assign_statement(identifiers, &statement->s_union.assign);
+  case S_RETURN:
+    return analyse_ret_statement(identifiers, &statement->s_union.ret, func_type);
+  default:
+    fprintf(stderr, "Unexpected statement type, should not be possible\n");
+    abort();
+  }
+  return 0;
+}
+
+unsigned char analyse_dec_statement(Identifiers *identifiers, const DeclarationStatement *dec) {
+  Identifier new_ident = {
+      .d_type = dec->d_type,
+      .variable = dec->variable,
+      .name = dec->lhs,
+  };
+
+  dyn_array_insert(identifiers, new_ident);
+
+  return analyse_expression(identifiers, &dec->expr, dec->d_type);
+}
+
+unsigned char analyse_assign_statement(Identifiers *identifiers, const AssignmentStatement *assign) {
+  const Identifier *ident = get_identifier(identifiers, assign->lhs);
+  if (ident == NULL) {
+    fprintf(stderr, "Undefined variable: %s\n", assign->lhs);
+    return INVALID_PROGRAM_CODE;
+  }
+
+  if (!ident->variable) {
+    fprintf(stderr, "Attempted to modify constant: %s\n", assign->lhs);
+    return INVALID_PROGRAM_CODE;
+  }
+
+  return analyse_expression(identifiers, &assign->expr, ident->d_type);
+}
+unsigned char analyse_ret_statement(Identifiers *identifiers, const ReturnStatement *ret, DataType func_type) {
+  return analyse_expression(identifiers, &ret->expr, func_type);
+}
+
+unsigned char analyse_expression(Identifiers *identifiers, const Expression *expr, DataType expr_type) {
+  switch (expr->e_type) {
+  case E_TERMINAL:
+    return analyse_term_expression(identifiers, &expr->e_union.term, expr_type);
+  case E_COMPOUND:
+    return analyse_comp_expression(identifiers, &expr->e_union.comp, expr_type);
+  default:
+    fprintf(stderr, "Unexpected expression type, should not be possible\n");
+    abort();
+  }
+}
+
+unsigned char analyse_term_expression(Identifiers *identifiers, const TerminalExpr *term, DataType expr_type) {
+  if (term->sign != NULL && expr_type != D_I32) {
+    fprintf(stderr, "Invalid use of sign: %s, must only be used with integer values\n",
+            t_type_to_string(term->sign->t_type));
+    return INVALID_PROGRAM_CODE;
+  }
+
+  if (term->tok->t_type == T_IDENTIFIER) {
+    const Identifier *ident = get_identifier(identifiers, term->tok->item);
+    if (ident == NULL) {
+      fprintf(stderr, "Undefined variable: %s\n", term->tok->item);
+      return INVALID_PROGRAM_CODE;
+    }
+
+    if (ident->d_type != expr_type) {
+      fprintf(stderr, "Variable %s does not have expected type %s\n", ident->name, d_type_to_string(ident->d_type));
+      return INVALID_PROGRAM_CODE;
+    }
+
+    return 0;
+  }
+
+  assert(term->tok->t_type == T_NUMERIC_LIT);
+
+  return 0;
+}
+
+// TODO: Do some checks here that the operator used is compatible with the datatype
+// TODO: With all these recursive functions, need to define some recursion limits in order to stop stack overflows
+unsigned char analyse_comp_expression(Identifiers *identifiers, const CompoundExpr *comp, DataType expr_type) {
+  unsigned char result = analyse_term_expression(identifiers, &comp->lhs, expr_type);
+  if (result != 0) {
+    return result;
+  }
+
+  return analyse_expression(identifiers, comp->rhs, expr_type);
+}
+
+const Identifier *get_identifier(const Identifiers *identifiers, const char *name) {
+  for (size_t i = 0; i < identifiers->count; i++) {
+    if (strcmp(identifiers->elements[i].name, name) == 0) {
+      return &identifiers->elements[i];
+    }
+  }
+  return NULL;
+}
